@@ -206,6 +206,7 @@ class FallingSkyRegion extends Region {
 
     logState() {
         console.log('*** ' + this.name + ' Region ***');
+        if (this.devastated()) console.log('Devastated');
         console.log('Controlling Faction: ' + (this.controllingFactionId() || 'No Control'));
         console.log('Tribes: ');
         _.each(
