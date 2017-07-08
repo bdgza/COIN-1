@@ -29,7 +29,10 @@ import PlaceLegions from '../actions/placeLegions';
 import RevealPieces from '../actions/revealPieces';
 
 import DisperseTribe from '../actions/disperseTribe';
+import UndisperseTribe from '../actions/undisperseTribe';
 import SenateApprovalStates from '../config/senateApprovalStates';
+import ArverniDevastate from '../bots/arverni/arverniDevastate';
+import Devastate from '../commands/arverni/devastate';
 
 import FallingSkyVassal from './fallingSkyVassal';
 
@@ -164,9 +167,7 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             legion: 0
           };
           
-          // special case, citadel of Aedui
-
-          // special case, citadel of Arverni
+          // look through pieces
 
           for (p = 0; p < zone.pieces.length; p++) {
             let pieceName = zone.pieces[p].name;
@@ -254,8 +255,13 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
   					if (pieceName == 'Roman Fort')
               PlaceFort.execute(this, {factionId: this.romans.id, regionId: region.id});
 
-            // TODO: dispersed tribe
-            // TODO: gathering tribe
+            // NOTE: in VASSAL Dispersed and Gathering are reversed in error
+            if (pieceName.endsWith(' (Dispersed)') || pieceName.endsWith(' (Gathering)')) {
+              DisperseTribe.execute(this, {factionId: this.romans.id, tribeId : this.vassal.tribeId(pieceX, pieceY)});
+              if (pieceName.endsWith(' (Dispersed)'))
+                UndisperseTribe.execute(this, {factionId: this.romans.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+            }
+            
             // TODO: devastated
             // TODO: Colony added
           }
@@ -284,7 +290,7 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     let romanLegionsFallen = 0;
     for (z = 0; z < json.zones.length; z++) {
         zone = json.zones[z];
-        console.log('OTHER ZONE: ' + zone.name);
+        //console.log('OTHER ZONE: ' + zone.name);
 
         for (p = 0; p < zone.pieces.length; p++) {
           let pieceName = zone.pieces[p].name;
