@@ -173,6 +173,12 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             let pieceName = zone.pieces[p].name;
             let pieceX = zone.pieces[p].x;
             let pieceY = zone.pieces[p].y;
+            
+            // look for Colony
+            if (pieceName == 'Colony Added') {
+              // add the colony tribe to this region
+              this.regionsById[region.id].addColony(this.tribesById[TribeIDs.COLONY]);
+            }
 
             // Aedui
             if (pieceName === 'Aedui Warband')
@@ -182,9 +188,9 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               aeduiCount.revealedwarbands++;
             }
             if (pieceName === 'Aedui Ally')
-              PlaceAlliedTribe.execute(this, {factionId: this.aedui.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+              PlaceAlliedTribe.execute(this, {factionId: this.aedui.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
   					if (pieceName == 'Aedui Citadel')
-              PlaceCitadel.execute(this, {factionId: this.aedui.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)}, false);
+              PlaceCitadel.execute(this, {factionId: this.aedui.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)}, false);
 
             // Arverni
             if (pieceName == 'Vercingetorix' || pieceName == 'Arverni Successor') {
@@ -201,9 +207,9 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               arverniCount.revealedwarbands++;
             }
             if (pieceName === 'Arverni Ally')
-              PlaceAlliedTribe.execute(this, {factionId: this.arverni.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+              PlaceAlliedTribe.execute(this, {factionId: this.arverni.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
   					if (pieceName == 'Averni Citadel')
-              PlaceCitadel.execute(this, {factionId: this.arverni.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)}, false);
+              PlaceCitadel.execute(this, {factionId: this.arverni.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)}, false);
 
             // Belgae
             if (pieceName == 'Ambiorix' || pieceName == 'Belgic Successor') {
@@ -220,9 +226,9 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               belgaeCount.revealedwarbands++;
             }
             if (pieceName === 'Belgic Ally')
-              PlaceAlliedTribe.execute(this, {factionId: this.belgae.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+              PlaceAlliedTribe.execute(this, {factionId: this.belgae.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
   					if (pieceName == 'Belgic Citadel')
-              PlaceCitadel.execute(this, {factionId: this.belgae.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)}, false);
+              PlaceCitadel.execute(this, {factionId: this.belgae.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)}, false);
 
             // Germanic
             if (pieceName === 'Germanic Warband')
@@ -232,7 +238,7 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               germanicCount.revealedwarbands++;
             }
             if (pieceName === 'Germanic Ally')
-              PlaceAlliedTribe.execute(this, {factionId: this.germanic.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+              PlaceAlliedTribe.execute(this, {factionId: this.germanic.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
 
             // Roman
             if (pieceName == 'Caesar' || pieceName == 'Roman Successor') {
@@ -251,22 +257,20 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             if (pieceName === 'Roman Legion')
               romanCount.legion++;
             if (pieceName === 'Roman Ally')
-              PlaceAlliedTribe.execute(this, {factionId: this.romans.id, regionId: region.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+              PlaceAlliedTribe.execute(this, {factionId: this.romans.id, regionId: region.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
   					if (pieceName == 'Roman Fort')
               PlaceFort.execute(this, {factionId: this.romans.id, regionId: region.id});
 
             // NOTE: in VASSAL Dispersed and Gathering are reversed in error
             if (pieceName.endsWith(' (Dispersed)') || pieceName.endsWith(' (Gathering)')) {
-              DisperseTribe.execute(this, {factionId: this.romans.id, tribeId : this.vassal.tribeId(pieceX, pieceY)});
+              DisperseTribe.execute(this, {factionId: this.romans.id, tribeId : this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
               if (pieceName.endsWith(' (Dispersed)'))
-                UndisperseTribe.execute(this, {factionId: this.romans.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
+                UndisperseTribe.execute(this, {factionId: this.romans.id, tribeId: this.vassal.tribeId(this, pieceName, region.id, pieceX, pieceY)});
             }
 
             // count Devastated
             if (pieceName == 'Devastated')
               region.devastated(true);
-            
-            // TODO: Colony added
           }
 
           // apply counts
