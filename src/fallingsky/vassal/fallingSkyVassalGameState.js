@@ -261,8 +261,11 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               if (pieceName.endsWith(' (Dispersed)'))
                 UndisperseTribe.execute(this, {factionId: this.romans.id, tribeId: this.vassal.tribeId(pieceX, pieceY)});
             }
+
+            // count Devastated
+            if (pieceName == 'Devastated')
+              region.devastated(true);
             
-            // TODO: devastated
             // TODO: Colony added
           }
 
