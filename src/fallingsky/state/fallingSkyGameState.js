@@ -13,7 +13,7 @@ import ArverniBot from '../bots/arverni/arverniBot';
 import RomanBot from '../bots/romanBot';
 import BelgaeBot from '../bots/belgae/belgaeBot';
 import GermanicBot from '../bots/germanic/germanicBot';
-import {CapabilityStates} from '../config/capabilities';
+import {CapabilityStates, CapabilityTitles} from '../config/capabilities';
 
 class FallingSkyGameState extends GameState {
     constructor() {
@@ -144,6 +144,13 @@ class FallingSkyGameState extends GameState {
         if (this.upcomingCard()) {
             console.log('Upcoming Card: ');
             console.log('    ' + this.upcomingCard().toString());
+        }
+        if (this.capabilities().length > 0) {
+            console.log('Capabilities: ');
+            _.each(
+                this.capabilities(), (cap, index, col) => {
+                    console.log('    #' + cap.id + ' - ' + CapabilityTitles[cap.id], '[' + cap.state + ']', '(' + cap.factionId + ')');
+                });
         }
     }
 
