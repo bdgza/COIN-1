@@ -132,6 +132,19 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     this.sequenceOfPlay.ineligibleFactions(ineligible);
     this.sequenceOfPlay.passedFactions(passed);
 
+    // look for colony added
+
+    for (let key in this.vassal.regions) {
+      let vassalregion = this.vassal.regions[key];
+      for (z = 0; z < json.zones.length; z++) {
+        zone = json.zones[z];
+        if (zone.name === vassalregion.modname)
+          for (p = 0; p < zone.pieces.length; p++)
+            if (zone.pieces[p].name == 'Colony Added')
+              this.regionsById[this.regionsById[vassalregion.id].id].addColony(this.tribesById[TribeIDs.COLONY]);
+      }
+    }
+
     // go through regions to count pieces
 
     for (let key in this.vassal.regions) {
@@ -173,12 +186,6 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             let pieceName = zone.pieces[p].name;
             let pieceX = zone.pieces[p].x;
             let pieceY = zone.pieces[p].y;
-            
-            // look for Colony
-            if (pieceName == 'Colony Added') {
-              // add the colony tribe to this region
-              this.regionsById[region.id].addColony(this.tribesById[TribeIDs.COLONY]);
-            }
 
             // Aedui
             if (pieceName === 'Aedui Warband')
