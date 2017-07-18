@@ -146,8 +146,12 @@ class FallingSkyRegion extends Region {
 
     subduedTribesForFaction(factionId) {
         return _(this.tribes).filter(function(tribe) {
-            return tribe.isSubdued() && (!tribe.factionRestriction || tribe.factionRestriction !== factionId);
+            return tribe.isSubdued() && (!tribe.factionRestriction || tribe.factionRestriction === factionId);
         }).value();
+    }
+
+    getSubduedTribes() {
+        return _(this.tribes).filter(tribe => tribe.isSubdued()).value();
     }
 
     getAlliedCityForFaction(factionId) {
@@ -156,10 +160,12 @@ class FallingSkyRegion extends Region {
         });
     }
 
+    getAlliesAndCitadels() {
+        return _(this.pieces()).filter(piece => piece.type === 'alliedtribe' || piece.type === 'citadel').value();
+    }
+
     numAlliesAndCitadelsForFaction(factionId) {
-        return _(this.piecesByFaction()[factionId]).filter(function(piece) {
-            return piece.type === 'alliedtribe' || piece.type === 'citadel';
-        }).value().length;
+        return _(this.piecesByFaction()[factionId]).filter(piece => piece.type === 'alliedtribe' || piece.type === 'citadel').value().length;
     }
 
     getPiecesForFaction(factionId) {

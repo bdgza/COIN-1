@@ -32,6 +32,9 @@ class Turn extends ActionGroup {
     pushContext(context) {
         const existingContext = _.find(this.contexts, {id : context.id });
         if(!existingContext) {
+            if(!context.currentFactionId) {
+                context.currentFactionId = this.getContext().currentFactionId;
+            }
             this.contexts.push(context);
         }
         this.currentContext = existingContext || context;
@@ -53,6 +56,15 @@ class Turn extends ActionGroup {
         this.actionGroups.push(actionGroup);
     }
 
+    rollbackPrior(type) {
+        const prior = this.actionGroups.pop();
+        if (!prior || prior.type !== type) {
+            throw Error('Tried to rollback prior ' + type + ', but none found');
+        }
+        console.log('Rolling back ' + prior.type + ' ' + prior.id);
+        this.state.actionHistory.undoRange(prior.actionStartIndex);
+    }
+
     rollbackActionGroup(type) {
         const last = _.last(this.inProgress);
         if (!last || (type && last.type !== type)) {
@@ -72,7 +84,7 @@ class Turn extends ActionGroup {
         const actionGroup = new ActionGroup({
             type: type,
             id: id,
-            factionId: this.factionId,
+            factionId: this.getContext().currentFactionId,
             actionStartIndex: this.state.actionHistory.currentIndex()
         });
         this.inProgress.push(actionGroup);
@@ -100,6 +112,10 @@ class Turn extends ActionGroup {
 
     rollbackSpecialAbility() {
         this.rollbackActionGroup('sa');
+    }
+
+    rollbackPriorSpecialAbility() {
+        this.rollbackPrior('sa');
     }
 
     startEvent(id) {
@@ -179,7 +195,7 @@ class Turn extends ActionGroup {
                                       {
                                           index: sa.actionStartIndex,
                                           type: 'sa',
-                                          instruction: this.factionId + ' chose to ' + sa.id
+                                          instruction: sa.factionId + ' chose to ' + sa.id
                                       });
         });
 
@@ -190,7 +206,7 @@ class Turn extends ActionGroup {
                                       {
                                           index: command.actionStartIndex,
                                           type: 'command',
-                                          instruction: this.factionId + ' chose to ' + command.id
+                                          instruction: command.factionId + ' chose to ' + command.id
                                       });
         });
 
@@ -202,7 +218,7 @@ class Turn extends ActionGroup {
                                       {
                                           index: event.actionStartIndex,
                                           type: 'event',
-                                          instruction: this.factionId + ' chose to play Event'
+                                          instruction: event.factionId + ' chose to play Event'
                                       });
         }
 

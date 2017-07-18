@@ -4,9 +4,12 @@ import SupplyLineAgreement from 'fallingsky/interactions/supplyLineAgreement';
 import QuartersAgreement from 'fallingsky/interactions/quartersAgreement';
 import RetreatAgreement from 'fallingsky/interactions/retreatAgreement';
 import RetreatDeclaration from 'fallingsky/interactions/retreatDeclaration';
+import BalearicSlingersDeclaration from 'fallingsky/interactions/balearicSlingersDeclaration';
+import GermanicHorseDeclaration from 'fallingsky/interactions/germanicHorseDeclaration';
 import Harassment from 'fallingsky/interactions/harassment';
 import Losses from 'fallingsky/interactions/losses';
 import Retreat from 'fallingsky/interactions/retreat';
+import {CapabilityIDs} from 'fallingsky/config/capabilities';
 
 class HumanPlayer extends FallingSkyPlayer {
     constructor(definition) {
@@ -46,6 +49,25 @@ class HumanPlayer extends FallingSkyPlayer {
                                                                        }));
     }
 
+    willApplyGermanicHorse(state, region, attackingFaction, defendingFaction) {
+        throw new PlayerInteractionNeededError('Use Germanic Horse Capability?',
+                                               new GermanicHorseDeclaration({
+                                                                                   requestingFactionId: attackingFaction.id,
+                                                                                   respondingFactionId: this.factionId,
+                                                                                   regionId: region.id
+                                                                               }));
+    }
+
+    willApplyBalearicSlingers(state, region, attackingFaction, defendingFaction) {
+        throw new PlayerInteractionNeededError('Use Balearic Slingers Capability?',
+                                               new BalearicSlingersDeclaration({
+                                                                                   requestingFactionId: attackingFaction.id,
+                                                                                   respondingFactionId: this.factionId,
+                                                                                   regionId: region.id,
+                                                                                   defendingFactionId: defendingFaction.id
+                                                                               }));
+    }
+
     willRetreat(state, region, attackingFaction, worstCaseAttackerLosses, noRetreatDefenderResults, retreatDefenderResults) {
         throw new PlayerInteractionNeededError('Will retreat from battle with ' + attackingFaction.id,
                                                new RetreatDeclaration({
@@ -58,24 +80,24 @@ class HumanPlayer extends FallingSkyPlayer {
     retreatFromBattle(state, battleResults, attackResults) {
         throw new PlayerInteractionNeededError('Retreat from battle with ' + battleResults.attackingFaction.id,
                                                new Retreat({
-                                                                          requestingFactionId: battleResults.attackingFaction.id,
-                                                                          respondingFactionId: this.factionId,
-                                                                          regionId: battleResults.region.id
-                                                                      }));
+                                                               requestingFactionId: battleResults.attackingFaction.id,
+                                                               respondingFactionId: this.factionId,
+                                                               regionId: battleResults.region.id
+                                                           }));
     }
 
     takeLosses(state, battleResults, attackResults, counterattack) {
-        throw new PlayerInteractionNeededError('Losses must be taken from battle with ' + battleResults.attackingFaction.id,
-                                               new Losses({
-                                                              requestingFactionId: battleResults.attackingFaction.id,
-                                                              respondingFactionId: this.factionId,
-                                                              ambush: !counterattack && battleResults.willAmbush,
-                                                              retreated: !counterattack && battleResults.willRetreat,
-                                                              counterattack: counterattack,
-                                                              regionId: battleResults.region.id,
-                                                              losses: attackResults.losses,
-                                                              targets: attackResults.targets
-                                                          }));
+        throw new PlayerInteractionNeededError(
+            'Losses must be taken from battle with ' + battleResults.attackingFaction.id,
+            new Losses({
+                           requestingFactionId: battleResults.attackingFaction.id,
+                           respondingFactionId: this.factionId,
+                           ambush: !counterattack && battleResults.willAmbush,
+                           retreated: !counterattack && battleResults.willRetreat,
+                           counterattack: counterattack,
+                           regionId: battleResults.region.id,
+                           losses: attackResults.losses
+                       }));
     }
 }
 

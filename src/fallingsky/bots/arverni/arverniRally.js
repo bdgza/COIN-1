@@ -5,6 +5,7 @@ import Rally from '../../commands/rally';
 import ArverniMarch from './arverniMarch';
 import ArverniDevastate from './arverniDevastate';
 import ArverniEntreat from './arverniEntreat';
+import RemoveResources from 'fallingsky/actions/removeResources';
 import FactionActions from '../../../common/factionActions';
 
 
@@ -15,26 +16,33 @@ class ArverniRally {
         const needWarbands = arverni.availableWarbands().length > 26;
         const executableRallyRegions = this.getExecutableRallyRegions(state, modifiers);
         if (!this.isRallyEffective(state, executableRallyRegions)) {
-            if(needWarbands) {
+            if (needWarbands) {
                 return ArverniMarch.march(state, modifiers, 'spread', true);
             }
             return false;
         }
 
         state.turnHistory.getCurrentTurn().startCommand(CommandIDs.RALLY);
-        Rally.execute(state, {faction: state.arverni, regionResults: executableRallyRegions});
+        _.each(executableRallyRegions, (rallyRegion) => {
+            if (!modifiers.free && rallyRegion.cost > 0) {
+                RemoveResources.execute(state, {factionId: state.arverni.id, count: rallyRegion.cost});
+            }
+            Rally.execute(state, {faction: state.arverni, regionResult: rallyRegion});
+        });
+
         state.turnHistory.getCurrentTurn().commitCommand();
-        const usedSpecialAbility = modifiers.canDoSpecial() && (ArverniDevastate.devastate(state, modifiers) || ArverniEntreat.entreat(state, modifiers));
+        const usedSpecialAbility = modifiers.canDoSpecial() && (ArverniDevastate.devastate(state, modifiers) ||
+                                                                ArverniEntreat.entreat(state, modifiers));
         return usedSpecialAbility ? FactionActions.COMMAND_AND_SPECIAL : FactionActions.COMMAND;
     }
 
-     static getCitadelRegions(state, modifiers) {
+    static getCitadelRegions(state, modifiers) {
         const rallyRegionResults = Rally.test(state, {factionId: FactionIDs.ARVERNI});
         const citadelRegions = _(rallyRegionResults).filter({canAddCitadel: true}).shuffle().value();
-        _.each(citadelRegions,(regionResult) => {
+        _.each(citadelRegions, (regionResult) => {
             regionResult.addCitadel = true;
             const leader = regionResult.region.getLeaderForFaction(FactionIDs.ARVERNI);
-            if(leader && !leader.isSuccessor()) {
+            if (leader && !leader.isSuccessor()) {
                 regionResult.addNumWarbands = regionResult.canAddNumWarbands;
             }
         });
@@ -43,14 +51,15 @@ class ArverniRally {
 
     static getAllyRegions(state, modifiers, ralliedRegionIds) {
         const regions = _.filter(state.regions, region => _.indexOf(ralliedRegionIds, region.id) < 0);
-        const rallyRegionResults = Rally.test(state, {factionId: FactionIDs.ARVERNI,
+        const rallyRegionResults = Rally.test(state, {
+            factionId: FactionIDs.ARVERNI,
             regions: regions
         });
         const allyRegions = _(rallyRegionResults).filter({canAddAlly: true}).shuffle().value();
-        _.each(allyRegions,(regionResult) => {
+        _.each(allyRegions, (regionResult) => {
             regionResult.addAlly = true;
             const leader = regionResult.region.getLeaderForFaction(FactionIDs.ARVERNI);
-            if(leader && !leader.isSuccessor()) {
+            if (leader && !leader.isSuccessor()) {
                 regionResult.addNumWarbands = regionResult.canAddNumWarbands;
             }
         });
@@ -59,14 +68,21 @@ class ArverniRally {
 
     static getWarbandRegions(state, modifiers, ralliedRegionIds) {
         const regions = _.filter(state.regions, region => _.indexOf(ralliedRegionIds, region.id) < 0);
-        const rallyRegionResults = Rally.test(state, {factionId: FactionIDs.ARVERNI,
+        const rallyRegionResults = _.shuffle(Rally.test(state, {
+            factionId: FactionIDs.ARVERNI,
             regions: regions
+        }));
+
+        let warbandsRemaining = state.arverni.availableWarbands().length;
+        _.each(rallyRegionResults, (regionResult) => {
+            regionResult.addNumWarbands = Math.min(regionResult.canAddNumWarbands, warbandsRemaining);
+            warbandsRemaining -= regionResult.addNumWarbands;
+            if(warbandsRemaining === 0) {
+                return false;
+            }
         });
-        const warbandRegions = _(rallyRegionResults).filter( result => result.canAddNumWarbands > 0).shuffle().value();
-        _.each(warbandRegions, (regionResult) => {
-            regionResult.addNumWarbands = regionResult.canAddNumWarbands;
-        });
-        return warbandRegions;
+
+        return _(rallyRegionResults).filter(result => result.addNumWarbands > 0).shuffle().value();
     }
 
     static isRallyEffective(state, executableRallyRegions) {
@@ -107,8 +123,16 @@ class ArverniRally {
         ralliedRegions.push.apply(ralliedRegions, _.map(allyRegions, rallyRegion => rallyRegion.region.id));
         const warbandRegions = this.getWarbandRegions(state, modifiers, ralliedRegions);
 
-        const allRegions = _(citadelRegions).concat(allyRegions).concat(warbandRegions).value();
-        return modifiers.limited ? _.take(allRegions, 1) : allRegions;
+        const allRegions = _(citadelRegions).concat(allyRegions).concat(warbandRegions).filter(rallyRegion => _.indexOf(modifiers.allowedRegions, rallyRegion.region.id) >= 0).value();
+        const affordableRegions = modifiers.free ? allRegions : _.reduce(allRegions, (accumulator, rallyRegion) => {
+            if (accumulator.resourcesRemaining >= rallyRegion.cost) {
+                accumulator.resourcesRemaining -= rallyRegion.cost;
+                accumulator.rallies.push(rallyRegion);
+            }
+            return accumulator
+        }, {resourcesRemaining: state.arverni.resources(), rallies: []}).rallies;
+
+        return modifiers.limited ? _.take(affordableRegions, 1) : affordableRegions;
     }
 
 }

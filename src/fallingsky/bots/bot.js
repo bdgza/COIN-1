@@ -12,6 +12,8 @@ import SupplyLineAgreement from 'fallingsky/interactions/supplyLineAgreement';
 import QuartersAgreement from 'fallingsky/interactions/quartersAgreement';
 import RetreatAgreement from 'fallingsky/interactions/retreatAgreement';
 import Harassment from 'fallingsky/interactions/harassment';
+import Losses from 'fallingsky/util/losses';
+import {CapabilityIDs} from 'fallingsky/config/capabilities';
 
 class Bot extends FallingSkyPlayer {
     constructor(definition) {
@@ -47,27 +49,14 @@ class Bot extends FallingSkyPlayer {
     }
 
     canPlayEvent(currentState) {
-        console.log('*** Aedui allowed to play event by sequence of play? ***');
         return _.indexOf(currentState.sequenceOfPlay.availableActions(), FactionActions.EVENT) >= 0;
     }
 
     willHarass(factionId, context) {
-        if (this.factionId === FactionIDs.ROMANS) {
-            throw new PlayerInteractionNeededError('Harassment possible for ' + factionId, new Harassment({
-                                                                                                              requestingFactionId: factionId,
-                                                                                                              respondingFactionId: this.factionId
-                                                                                                          }));
-        }
         return true;
     }
 
     willAgreeToQuarters(state, factionId) {
-        if (this.factionId === FactionIDs.ROMANS) {
-            throw new PlayerInteractionNeededError('Quarters requested by ' + factionId, new QuartersAgreement({
-                                                                                                                   requestingFactionId: factionId,
-                                                                                                                   respondingFactionId: this.factionId
-                                                                                                               }));
-        }
         return false;
     }
 
@@ -76,25 +65,17 @@ class Bot extends FallingSkyPlayer {
     }
 
     willAgreeToSupplyLine(state, factionId) {
-        if (this.factionId === FactionIDs.ROMANS) {
-            throw new PlayerInteractionNeededError('Supply line requested by ' + factionId, new SupplyLineAgreement({
-                                                                                                                        requestingFactionId: factionId,
-                                                                                                                        respondingFactionId: this.factionId
-                                                                                                                    }));
-        }
         return false;
     }
 
-    willRetreat(state, region, attackingFaction, attackerLosses, nonRetreatResults, retreatResults) {
+    willRetreat(state, region, attackingFaction, noRetreatLosses, retreatLosses) {
         let wantToRetreat = false;
+        const defendingPieces = region.getPiecesForFaction(this.factionId);
 
         // 3.2.4 - The defender may opt to have any Retreating Leader and/or Hidden Warbands stay put.
         const canRetreatInPlace = attackingFaction.id === FactionIDs.ROMANS &&
                                   this.factionId !== FactionIDs.GERMANIC_TRIBES;
-        const hasRevealedPieces = _.find(
-            defendingPieces, function (piece) {
-                return piece.revealed();
-            });
+        const hasRevealedPieces = _.find(defendingPieces, piece => (piece.type === 'warband' || piece.type === 'auxilia') &&  piece.revealed());
         const hasLossesFromRetreat = !canRetreatInPlace || (!hasSafeRetreatRegion && hasRevealedPieces);
 
         const hasSafeRetreatRegion = _.find(
@@ -102,16 +83,27 @@ class Bot extends FallingSkyPlayer {
                     return adjacentRegion.controllingFactionId() && adjacentRegion.controllingFactionId() === this.factionId;
                 }) || !hasLossesFromRetreat;
 
+
+        const noRetreatOrderedPieces = Losses.orderPiecesForRemoval(state, defendingPieces, false);
+        const retreatOrderedPieces = Losses.orderPiecesForRemoval(state, defendingPieces, false);
+
+        const noRetreatRemoved = _.take(noRetreatOrderedPieces, noRetreatLosses);
+        const noRetreatRemaining = _.drop(noRetreatOrderedPieces, noRetreatLosses);
+        const retreatRemoved = _.take(retreatOrderedPieces, retreatLosses);
+        const retreatRemaining = _.drop(retreatOrderedPieces, retreatLosses);
+
+        const worstCaseAttackerLosses = Math.floor(Losses.calculateUnmodifiedLosses(state, noRetreatRemaining, true));
+
         // 8.4.3 - When needed to ensure the survival off their last Defending piece.
-        if (nonRetreatResults.remaining.length === 0 && retreatResults.remaining.length > 0) {
+        if (noRetreatRemaining.length === 0 && retreatRemaining.length > 0) {
             console.log(this.factionId + ' wants to retreat to save last piece');
             wantToRetreat = true;
         }
 
         // 8.4.3 - If Roman, when needed to lower the number of forced Loss rolls against Legions
         if (this.factionId === FactionIDs.ROMANS) {
-            const nonRetreatLegionsRemoved = _.countBy(nonRetreatResults.targets, 'type').legion || 0;
-            const retreatLegionsRemoved = _.countBy(nonRetreatResults.targets, 'type').legion || 0;
+            const nonRetreatLegionsRemoved = _.countBy(noRetreatRemoved, 'type').legion || 0;
+            const retreatLegionsRemoved = _.countBy(retreatRemoved, 'type').legion || 0;
 
             if (retreatLegionsRemoved < nonRetreatLegionsRemoved) {
                 console.log(this.factionId + ' wants to retreat to lower legion losses');
@@ -123,9 +115,8 @@ class Bot extends FallingSkyPlayer {
         // defending pieces, when they cannot guarantee inflicting at least half the Losses against
         // the Attacker that they will suffer (regardless of how many pieces might be removed by the
         // Losses).
-        const defendingPieces = region.piecesByFaction()[this.factionId];
-        const hasDefendingCitadelOrFort = Battle.defenderHasCitadelOrFort(defendingPieces);
-        const counterAttackLossesTooFew = attackerLosses < (nonRetreatResults.losses / 2);
+        const hasDefendingCitadelOrFort = _.find(defendingPieces, piece => piece.type === 'citadel' || piece.type === 'fort');
+        const counterAttackLossesTooFew = worstCaseAttackerLosses < (noRetreatLosses / 2);
 
         if (!hasDefendingCitadelOrFort && counterAttackLossesTooFew) {
             console.log(
@@ -137,11 +128,16 @@ class Bot extends FallingSkyPlayer {
             console.log(this.factionId + ' will be able to retreat safely');
         }
 
+        let agreeingFactionId;
         if (wantToRetreat && !hasSafeRetreatRegion) {
-            retreatResults.agreeingFactionId = this.getRetreatAgreement(state, region);
+            agreeingFactionId = this.getRetreatAgreement(state, region);
         }
 
-        return wantToRetreat && (hasSafeRetreatRegion || retreatResults.agreeingFactionId);
+        const willRetreat = wantToRetreat && (hasSafeRetreatRegion || agreeingFactionId);
+        return {
+            willRetreat,
+            agreeingFactionId
+        };
     }
 
     getRetreatAgreement(state, region) {
@@ -165,7 +161,8 @@ class Bot extends FallingSkyPlayer {
                 console.log('Asking ' + regionFactionId + ' for region ' + agreementRequiredRegion.name);
                 factionsAsked[regionFactionId] = true;
                 const existingAgreement = this.getExistingAgreement(state, regionFactionId, 'RetreatAgreement');
-                return existingAgreement ? existingAgreement.status === 'agreed' : state.playersByFaction[regionFactionId].willAgreeToRetreat(state, regionFactionId);
+                return existingAgreement ? existingAgreement.status === 'agreed' : state.playersByFaction[regionFactionId].willAgreeToRetreat(
+                    state, regionFactionId);
             });
 
 
@@ -188,7 +185,8 @@ class Bot extends FallingSkyPlayer {
         _.each(
             factionIds, (factionId) => {
                 const existingAgreement = this.getExistingAgreement(state, factionId, 'SupplyLineAgreement');
-                const agreed = existingAgreement ? existingAgreement.status === 'agreed' : state.playersByFaction[factionId].willAgreeToSupplyLine(state,
+                const agreed = existingAgreement ? existingAgreement.status === 'agreed' : state.playersByFaction[factionId].willAgreeToSupplyLine(
+                    state,
                     this.factionId);
                 console.log(
                     this.factionId + ' asked ' + factionId + ' for supply line agreement -> ' + factionId + (agreed ? ' agreed' : ' denied'));
@@ -200,12 +198,13 @@ class Bot extends FallingSkyPlayer {
         return agreements;
     }
 
-    takeLosses(state, battleResults, attackResults, counterattack) {
+    takeLosses(state, battleResults, attackResults, counterattack, causedByCapability) {
         const region = battleResults.region;
         const attackingFaction = counterattack ? battleResults.defendingFaction : battleResults.attackingFaction;
-        const ambush = battleResults.willAmbush;
+        const ambush = battleResults.willAmbush && !causedByCapability;
 
-        let allowRolls = !ambush && !counterattack;
+        const ballistae = state.hasUnshadedCapability(CapabilityIDs.BALLISTAE) && this.factionId === FactionIDs.ROMANS;
+        let allowRolls = causedByCapability || (!ambush && !counterattack);
 
         if (!allowRolls && !counterattack && this.factionId === FactionIDs.ROMANS) {
             const defendingLeader = _.find(region.piecesByFaction()[this.factionId], {type: 'leader'});
@@ -222,37 +221,42 @@ class Bot extends FallingSkyPlayer {
             }
         }
 
-        const targets = _.clone(attackResults.targets);
+
+        const amAttacker = battleResults.attackingFaction.id === this.factionId;
+        const myPieces = amAttacker ? Battle.getAttackingPieces(battleResults) : Battle.getDefendingPieces(battleResults);
+        const helpingFactionId = (amAttacker && battleResults.willEnlistGermans) ? FactionIDs.GERMANIC_TRIBES : null;
+
+        const targets = _.clone(Losses.orderPiecesForRemoval(state, myPieces, battleResults.willRetreat, helpingFactionId));
         const losses = attackResults.losses;
 
         const removed = [];
-        const saved = [];
 
-        _.each(_.range(0,losses), (index) => {
-            const piece = _.first(targets);
-            let willRemove = true;
-            const canRollForLoss = piece.type === 'leader' || piece.type === 'citadel' || piece.type === 'legion' || piece.type === 'fort';
-            if (canRollForLoss && allowRolls) {
-                const roll = _.random(1, 6);
-                console.log('Rolling for loss of ' + piece.type + ', need 4-6 and got ' + roll);
-                willRemove = roll < 4;
-            }
+        if(targets.length > 0) {
+            _.each(_.range(0, losses), (index) => {
+                const piece = _.first(targets);
+                let willRemove = true;
+                const canRollForLoss = piece.type === 'leader' || piece.type === 'citadel' || piece.type === 'legion' || piece.type === 'fort';
+                if (canRollForLoss && allowRolls) {
+                    const roll = _.random(1, 6);
+                    console.log('Rolling for loss of ' + piece.type + ', need 4-6 and got ' + roll);
+                    willRemove = roll < ((piece.type === 'fort' && ballistae) ? 3 : 4);
+                }
 
-            if (willRemove) {
-                removed.push(targets.shift());
-            }
-            else {
-                console.log(piece.type + ' saved!');
-                saved.push(targets.shift());
-            }
+                if (willRemove) {
+                    removed.push(targets.shift());
+                }
+                else {
+                    console.log(piece.type + ' saved!');
+                }
 
-            if(targets.length === 0) {
-                return false;
-            }
-        });
+                if (targets.length === 0) {
+                    return false;
+                }
+            });
+        }
 
         attackResults.removed = removed;
-        attackResults.remaining.push.apply(attackResults.remaining, saved);
+        attackResults.remaining = targets;
 
         if (attackResults.removed.length > 0) {
             RemovePieces.execute(
@@ -263,8 +267,10 @@ class Bot extends FallingSkyPlayer {
                 });
         }
 
-        attackResults.counterattackPossible = allowRolls && _.find(attackResults.remaining, {isMobile : true});
+        attackResults.counterattackPossible = allowRolls && _.find(attackResults.remaining, {isMobile: true});
     }
+
+
 
     retreatFromBattle(state, battleResults, attackResults) {
         const region = battleResults.region;
@@ -293,7 +299,8 @@ class Bot extends FallingSkyPlayer {
         let retreatRegion = this.retreatPieces(state, region, groupedPieces.leaving || [],
                                                attackResults.agreeingFactionId);
 
-        if (groupedPieces.leader) {
+
+        if (groupedPieces.leader && retreatRegion) {
             const sourceFriendlyPieces = region.piecesByFaction()[this.factionId];
             const targetFriendlyPieces = retreatRegion.piecesByFaction()[this.factionId];
             if (targetFriendlyPieces.length > sourceFriendlyPieces.length) {

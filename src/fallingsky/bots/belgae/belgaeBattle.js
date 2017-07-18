@@ -73,7 +73,7 @@ class BelgaeBattle {
 
         const importantBattleRegions = this.findImportantBattleRegions(state, modifiers);
         if (importantBattleRegions.length === 0) {
-            return false;
+            return [];
         }
 
         const battlegrounds = this.findBattlegrounds(state, modifiers, importantBattleRegions);

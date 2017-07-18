@@ -6,73 +6,121 @@ import BattleResults from './battleResults';
 import RevealPieces from '../actions/revealPieces';
 import RemovePieces  from '../actions/removePieces';
 import {CapabilityIDs} from '../config/capabilities';
-import Bot from '../bots/bot';
+import Losses from 'fallingsky/util/losses';
 
 class Battle extends Command {
 
     static doTest(state, args) {
         const region = args.region;
         const enlistingGermans = args.enlistingGermans;
+        const withGermanicHorse = args.withGermanicHorse;
+
         const attackingFaction = args.attackingFaction;
         const defendingFaction = args.defendingFaction;
-        const attackingPlayer = state.playersByFaction[attackingFaction.id];
-        const defendingPlayer = state.playersByFaction[defendingFaction.id];
 
-        let attackingPieces = region.piecesByFaction()[attackingFaction.id] || [];
+        let attackingPieces = region.getPiecesForFaction(attackingFaction.id);
         if (enlistingGermans) {
-            const germanicPieces = region.piecesByFaction()[attackingFaction.id] || [];
+            const germanicPieces = region.getPiecesForFaction(FactionIDs.GERMANIC_TRIBES);
             attackingPieces = _.concat(attackingPieces, germanicPieces);
         }
-        const defendingPieces = region.piecesByFaction()[defendingFaction.id] || [];
+        let defendingPieces = args.defendingPieces || region.getPiecesForFaction(defendingFaction.id);
+        const canAmbush = !enlistingGermans &&
+                          this.canAmbush(state, region, attackingFaction, attackingPieces, defendingPieces);
 
-        const canAmbush = !enlistingGermans && this.canAmbush(state, region, attackingFaction, attackingPieces,
-                                                              defendingPieces);
+
+        if(defendingFaction.id === FactionIDs.ROMANS && state.hasUnshadedCapability(CapabilityIDs.BALEARIC_SLINGERS)) {
+            attackingPieces = this.simulateBalearicSlingers(state, region, attackingFaction, attackingPieces, defendingFaction);
+        }
+
+        if(state.hasShadedCapability(CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
+            const {updatedAttackingPieces, updatedDefendingPieces} = this.simulateMassedGallicArchers(state, region, attackingFaction, attackingPieces, defendingFaction,
+                                               defendingPieces);
+
+            attackingPieces = updatedAttackingPieces;
+            defendingPieces = updatedDefendingPieces;
+        }
+
         const defenderCanRetreat = this.canRetreat(attackingFaction, defendingFaction, region);
+        const defenderCanGuaranteeSafeRetreat = defenderCanRetreat &&
+                                                this.hasGuaranteedSafeRetreat(attackingFaction, defendingFaction, region);
 
         // Base Losses
-        let unmodifiedDefenderLosses = this.calculateUnmodifiedLosses(attackingPieces);
-        if (attackingFaction.id === FactionIDs.ARVERNI && state.hasUnshadedCapability(
-                CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
+        let unmodifiedDefenderLosses = Losses.calculateUnmodifiedLosses(state, attackingFaction, attackingPieces, false,
+                                                                        withGermanicHorse);
+
+        if (attackingFaction.id === FactionIDs.ARVERNI && state.hasUnshadedCapability(CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
             unmodifiedDefenderLosses = Math.max(0, unmodifiedDefenderLosses - 1);
         }
 
         // No Retreat
         let noRetreatDefenderLosses = unmodifiedDefenderLosses;
-        if (this.defenderHasCitadelOrFort(defendingPieces)) {
+        if (this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
             noRetreatDefenderLosses /= 2;
         }
+        else if (withGermanicHorse && state.hasShadedCapability(CapabilityIDs.GERMANIC_HORSE, attackingFaction.id) && !this.defenderHasCitadelOrFort(state, defendingPieces)) {
+            noRetreatDefenderLosses *= 2;
+        }
+        noRetreatDefenderLosses = Math.floor(noRetreatDefenderLosses);
 
-        noRetreatDefenderLosses = Math.min(Math.floor(noRetreatDefenderLosses), defendingPieces.length);
-        const noRetreatOrderedDefendingPieces = defendingPlayer.orderPiecesForRemoval(state, defendingPieces, false);
-        const noRetreatDefenderResults = this.calculateLeastAttackResults(noRetreatOrderedDefendingPieces,
-                                                                          noRetreatDefenderLosses, false);
-        const noRetreatDefenderResultsAmbush = this.calculateLeastAttackResults(noRetreatOrderedDefendingPieces,
-                                                                                noRetreatDefenderLosses, true);
+        if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+            noRetreatDefenderLosses -= 1;
+        }
+        if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+            noRetreatDefenderLosses += 2;
+        }
 
-        // Counterattack
-        const defenderCanCounterattack = this.canCounterattack(false, noRetreatDefenderLosses, defendingPieces);
-        const defenderCanCounterattackAmbush = this.canCounterattack(true, noRetreatDefenderLosses, defendingPieces);
-
-        const worstCaseAttackerLosses = Math.min(
-            Math.floor(this.calculateUnmodifiedLosses(noRetreatDefenderResults.remaining, true)),
-            attackingPieces.length);
-        const worstCaseAttackerLossesAmbush = defenderCanCounterattackAmbush ? worstCaseAttackerLosses : 0;
-
-        const orderedAttackingPieces = attackingPlayer.orderPiecesForRemoval(state, attackingPieces, false);
-        const counterattackResults = this.calculateAttackResults(orderedAttackingPieces, worstCaseAttackerLosses,
-                                                                 false);
-        const counterattackResultsAmbush = this.calculateAttackResults(orderedAttackingPieces,
-                                                                       worstCaseAttackerLossesAmbush, false);
+        const noRetreatRollOrderedDefendingPieces = Losses.orderPiecesRollsFirst(defendingPieces, false);
+        const worstCaseNoRetreatDefenderResults = this.calculateLeastAttackResults(noRetreatRollOrderedDefendingPieces,
+                                                                                   noRetreatDefenderLosses, false);
+        const worstCaseNoRetreatDefenderResultsWithAmbush = this.calculateLeastAttackResults(
+            noRetreatRollOrderedDefendingPieces,
+            noRetreatDefenderLosses, true);
 
         // Retreat
-        const retreatDefenderLosses = Math.min(Math.floor(unmodifiedDefenderLosses / 2), defendingPieces.length);
-        const retreatOrderedDefendingPieces = defendingPlayer.orderPiecesForRemoval(state, defendingPieces, true);
-        const retreatDefenderResults = this.calculateLeastAttackResults(retreatOrderedDefendingPieces,
-                                                                        retreatDefenderLosses, false);
+        let retreatDefenderLosses = Math.floor(unmodifiedDefenderLosses / 2);
+        if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+            retreatDefenderLosses -= 1;
+        }
+        if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+            retreatDefenderLosses += 2;
+        }
+        const retreatOrderedDefendingPieces = Losses.orderPiecesRollsFirst(defendingPieces, true);
+        const worstCaseRetreatDefenderResults = this.calculateLeastAttackResults(retreatOrderedDefendingPieces,
+                                                                                 retreatDefenderLosses, false);
+
+        // Counterattack
+        const defenderCanCounterattack = this.canCounterattack(false, retreatDefenderLosses, defendingPieces);
+        const defenderCanCounterattackAmbush = this.canCounterattack(true, retreatDefenderLosses, defendingPieces);
+
+        const romansUseGermanicHorseOnDefense = defendingFaction.id === FactionIDs.ROMANS && state.hasUnshadedCapability(CapabilityIDs.GERMANIC_HORSE);
+        const gallicUseGermanicHorseOnDefense = state.hasShadedCapability(CapabilityIDs.GERMANIC_HORSE, defendingFaction.id);
+        let worstCaseAttackerLosses = Losses.calculateUnmodifiedLosses(state, defendingFaction,
+                                                                       worstCaseNoRetreatDefenderResults.remaining,
+                                                                       true, romansUseGermanicHorseOnDefense);
+        if (gallicUseGermanicHorseOnDefense && !this.defenderHasCitadelOrFort(state, defendingPieces)) {
+            worstCaseAttackerLosses *= 2;
+        }
+        worstCaseAttackerLosses = Math.floor(worstCaseAttackerLosses);
+        if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+            worstCaseAttackerLosses -= 1;
+        }
+        if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+            worstCaseAttackerLosses += 2;
+        }
+        const worstCaseAttackerLossesAmbush = defenderCanCounterattackAmbush ? worstCaseAttackerLosses : 0;
+
+        const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : null;
+        const orderedAttackingPieces = Losses.orderPiecesForRemoval(state, attackingPieces, false, helpingFactionId);
+        const worstCaseCounterattackResults = this.calculateMostAttackResults(orderedAttackingPieces,
+                                                                              worstCaseAttackerLosses,
+                                                                              false);
+        const worstCaseCounterattackResultsWithAmbush = this.calculateMostAttackResults(orderedAttackingPieces,
+                                                                                        worstCaseAttackerLossesAmbush,
+                                                                                        false);
 
         const worstCaseDefenderLosses = _.min(
-            [(defenderCanRetreat ? retreatDefenderResults.targets.length : noRetreatDefenderResults.targets.length), noRetreatDefenderResults.targets.length, defendingPieces.length]);
-        const worstCaseDefenderLossesAmbush = noRetreatDefenderResultsAmbush.targets.length;
+            [(defenderCanRetreat ? worstCaseRetreatDefenderResults.targets.length : worstCaseNoRetreatDefenderResults.targets.length), worstCaseNoRetreatDefenderResults.targets.length, defendingPieces.length]);
+        const worstCaseDefenderLossesAmbush = worstCaseNoRetreatDefenderResultsWithAmbush.targets.length;
 
         return new BattleResults(
             {
@@ -88,16 +136,22 @@ class Battle extends Command {
                 canAmbush: canAmbush,
                 enlistingGermans: enlistingGermans,
                 defenderCanRetreat: defenderCanRetreat,
+                defenderCanGuaranteeSafeRetreat: defenderCanGuaranteeSafeRetreat,
                 defenderCanCounterattack: {normal: defenderCanCounterattack, ambush: defenderCanCounterattackAmbush},
 
-                worstCaseRetreatDefenderResults: retreatDefenderResults,
+                defenderLosses: {normal: noRetreatDefenderLosses, retreat: retreatDefenderLosses},
+
+                worstCaseRetreatDefenderResults: worstCaseRetreatDefenderResults,
                 worstCaseNoRetreatDefenderResults: {
-                    normal: noRetreatDefenderResults,
-                    ambush: noRetreatDefenderResultsAmbush
+                    normal: worstCaseNoRetreatDefenderResults,
+                    ambush: worstCaseNoRetreatDefenderResultsWithAmbush
                 },
                 worstCaseDefenderLosses: {normal: worstCaseDefenderLosses, ambush: worstCaseDefenderLossesAmbush},
                 worstCaseAttackerLosses: {normal: worstCaseAttackerLosses, ambush: worstCaseAttackerLossesAmbush},
-                worstCaseCounterattackResults: {normal: counterattackResults, ambush: counterattackResultsAmbush}
+                worstCaseCounterattackResults: {
+                    normal: worstCaseCounterattackResults,
+                    ambush: worstCaseCounterattackResultsWithAmbush
+                }
             });
     }
 
@@ -120,75 +174,132 @@ class Battle extends Command {
             console.log(attackingFaction.name + ' is ambushing!');
         }
 
-        let attackingPieces = region.piecesByFaction()[attackingFaction.id];
-        if (enlistingGermans) {
-            const germanicPieces = region.piecesByFaction()[attackingFaction.id] || [];
-            attackingPieces = _.concat(attackingPieces, germanicPieces);
+        let attackingPieces = Battle.getAttackingPieces(battleResults);
+        this.handleGermanicHorse(state, battleResults, region, attackingFaction, defendingFaction);
+
+        if (!battleResults.handledBalearicSlingers) {
+            this.handleBalearicSlingers(state, battleResults, region, attackingFaction, defendingFaction);
+            battleResults.handledBalearicSlingers = true;
         }
 
-        if(!battleResults.calculatedDefenderResults) {
-            const defendingPieces = region.piecesByFaction()[defendingFaction.id];
+        if(state.hasShadedCapability(CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
+            if (!battleResults.handledMassedGallicArchers) {
+                this.handleMassedGallicArchers(state, battleResults, region, attackingFaction, defendingFaction);
+                battleResults.handledMassedGallicArchers = true;
+            }
+        }
 
-            let unmodifiedDefenderLosses = this.calculateUnmodifiedLosses(attackingPieces);
+        // We may have removed some attackers or defenders in balearic slingers or massed gallic archers
+        attackingPieces = Battle.getAttackingPieces(battleResults);
+
+        if (!battleResults.calculatedDefenderResults) {
+            const defendingPieces = Battle.getDefendingPieces(battleResults);
+
+            let unmodifiedDefenderLosses = Losses.calculateUnmodifiedLosses(state, attackingFaction, attackingPieces, false,
+                                                                            battleResults.willApplyGermanicHorse);
             if (attackingFaction.id === FactionIDs.ARVERNI && state.hasUnshadedCapability(
                     CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
                 unmodifiedDefenderLosses = Math.max(0, unmodifiedDefenderLosses - 1);
             }
             // No Retreat
             let noRetreatDefenderLosses = unmodifiedDefenderLosses;
-            if (this.defenderHasCitadelOrFort(defendingPieces)) {
+            if (this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
                 noRetreatDefenderLosses /= 2;
             }
+            else if (battleResults.willApplyGermanicHorse && attackingFaction.id !== FactionIDs.ROMANS && state.hasShadedCapability(
+                    CapabilityIDs.GERMANIC_HORSE, attackingFaction.id)) {
+                noRetreatDefenderLosses *= 2;
+            }
             noRetreatDefenderLosses = Math.floor(noRetreatDefenderLosses);
-            const noRetreatOrderedDefendingPieces = defendingPlayer.orderPiecesForRemoval(state, defendingPieces,
-                                                                                          false);
-            const noRetreatDefenderResults = this.calculateAttackResults(noRetreatOrderedDefendingPieces,
-                                                                         noRetreatDefenderLosses);
 
-            const worstCaseAttackerLosses = Math.floor(
-                this.calculateUnmodifiedLosses(noRetreatDefenderResults.remaining, true));
+            if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+                noRetreatDefenderLosses -= 1;
+            }
+            if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+                noRetreatDefenderLosses += 2;
+            }
 
-            let defenderResults = noRetreatDefenderResults;
+            let defenderResults = {
+                losses: noRetreatDefenderLosses,
+                targets: [],
+                remaining: []
+            };
+
             if (!ambush && this.canRetreat(attackingFaction, defendingFaction, region)) {
-                const retreatDefenderLosses = Math.floor(unmodifiedDefenderLosses / 2);
-                const retreatOrderedDefendingPieces = defendingPlayer.orderPiecesForRemoval(state, defendingPieces,
-                                                                                            true);
-                const retreatDefenderResults = this.calculateAttackResults(retreatOrderedDefendingPieces,
-                                                                           retreatDefenderLosses);
+                let retreatDefenderLosses = Math.floor(unmodifiedDefenderLosses / 2);
+                if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+                    retreatDefenderLosses -= 1;
+                }
+                if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+                    retreatDefenderLosses += 2;
+                }
 
-                battleResults.willRetreat = this.getRetreatDeclaration(state, region, attackingFaction,
-                                                                       defendingFaction, worstCaseAttackerLosses,
-                                                                       noRetreatDefenderResults,
-                                                                       retreatDefenderResults);
-                if (battleResults.willRetreat) {
+                const retreatDeclaration = this.getRetreatDeclaration(state, region, attackingFaction,
+                                                                      defendingFaction,
+                                                                      noRetreatDefenderLosses,
+                                                                      retreatDefenderLosses);
+                if (retreatDeclaration.willRetreat) {
                     console.log(defendingFaction.name + ' is retreating!');
-                    defenderResults = retreatDefenderResults;
+                    battleResults.willRetreat = true;
+                    defenderResults.losses = retreatDefenderLosses;
+                    defenderResults.agreeingFactionId = retreatDeclaration.agreeingFactionId;
                 }
             }
-            battleResults.calculatedDefenderResults = defenderResults;
+
+            battleResults.calculatedDefenderResults = defenderResults
         }
 
-        // THIS IS THE FIRST POINT OF NO RETURN
-        if(!battleResults.committedDefenderResults) {
+        if (battleResults.willBesiege && !battleResults.besieged) {
+            const pieceToRemove = _.find(battleResults.defendingPieces, {type: 'citadel'}) ||
+                                  _.find(battleResults.defendingPieces, {type: 'alliedtribe'});
+            if (pieceToRemove) {
+                console.log('*** Attacker is Besieging ***');
+                RemovePieces.execute(state,
+                                     {
+                                         factionId: defendingFaction.id,
+                                         regionId: region.id,
+                                         pieces: [pieceToRemove]
+                                     });
+            }
+            battleResults.besieged = true;
+        }
+
+        if (!battleResults.committedDefenderResults) {
             this.handleLosses(state, battleResults, battleResults.calculatedDefenderResults, false);
             battleResults.committedDefenderResults = battleResults.calculatedDefenderResults;
         }
 
 
-        if (battleResults.willRetreat && !battleResults.retreated) {
-            // THIS IS THE SECOND POINT OF NO RETURN
-            this.handleRetreat(state, battleResults, battleResults.committedDefenderResults);
-            battleResults.retreated = true;
-        }
-
         if (battleResults.committedDefenderResults.counterattackPossible && !battleResults.willRetreat) {
-            const attackerLosses = Math.floor(this.calculateUnmodifiedLosses(battleResults.committedDefenderResults.remaining, true));
+            const defendingPieces = region.piecesByFaction()[defendingFaction.id];
+            let attackerLosses = Losses.calculateUnmodifiedLosses(state, defendingFaction,
+                                                                  battleResults.committedDefenderResults.remaining,
+                                                                  true, battleResults.willApplyGermanicHorse);
+            if (battleResults.willApplyGermanicHorse && defendingFaction.id !== FactionIDs.ROMANS &&
+                state.hasShadedCapability(CapabilityIDs.GERMANIC_HORSE, defendingFaction.id) &&
+                !this.defenderHasCitadelOrFort(state, defendingPieces)) {
+                attackerLosses *= 2;
+            }
+            attackerLosses = Math.floor(attackerLosses);
+            if (this.partyHasUnshadedLegioX(state, region, attackingFaction)) {
+                attackerLosses -= 1;
+            }
+            if (this.partyHasUnshadedLegioX(state, region, defendingFaction)) {
+                attackerLosses += 2;
+            }
             if (attackerLosses > 0) {
-                const orderedAttackingPieces = attackingPlayer.orderPiecesForRemoval(state, attackingPieces, false);
-                const counterattackResults = this.calculateAttackResults(orderedAttackingPieces, attackerLosses);
-                // ONCE WE PASS HERE WE WILL NOT BE INTERRUPTED
+                const counterattackResults = {
+                    losses: attackerLosses,
+                    targets: [],
+                    remaining: []
+                };
                 this.handleLosses(state, battleResults, counterattackResults, true);
             }
+        }
+
+        if (battleResults.willRetreat && !battleResults.retreated) {
+            this.handleRetreat(state, battleResults, battleResults.committedDefenderResults);
+            battleResults.retreated = true;
         }
 
         if (!battleResults.willRetreat) {
@@ -197,7 +308,8 @@ class Battle extends Command {
         }
 
         if (ambush && state.hasShadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id)) {
-            const citadelOrFort = _.find(region.getPiecesForFaction(defendingFaction.id), (piece) => piece.type === 'citadel' || piece.type === 'fort');
+            const citadelOrFort = _.find(region.getPiecesForFaction(defendingFaction.id),
+                                         (piece) => piece.type === 'citadel' || piece.type === 'fort');
             if (citadelOrFort) {
                 console.log('*** Attacker is using Ballistae ***');
                 RemovePieces.execute(state,
@@ -209,28 +321,155 @@ class Battle extends Command {
             }
         }
         battleResults.complete = true;
-        // region.logState();
         console.log('Battle complete');
-
     }
 
-    static getRetreatDeclaration(state, region, attackingFaction, defendingFaction, worstCaseAttackerLosses, noRetreatDefenderResults, retreatDefenderResults) {
+    static getAttackingPieces(battleResults) {
+        let pieces = battleResults.region.getPiecesForFaction(battleResults.attackingFaction.id);
+        if(battleResults.willEnlistGermans) {
+            const germans = battleResults.region.getPiecesForFaction(FactionIDs.GERMANIC_TRIBES);
+            pieces = _.concat(pieces,germans);
+        }
+        // diviciacus too
+
+        return pieces;
+    }
+
+    static getDefendingPieces(battleResults) {
+        let pieces = battleResults.region.getPiecesForFaction(battleResults.defendingFaction.id);
+        // diviciacus too
+
+        return pieces;
+    }
+
+    static partyHasUnshadedLegioX(state, region, faction) {
+        if (faction.id !== FactionIDs.ROMANS) {
+            return false;
+        }
+
+        if (!region.getLeaderForFaction(FactionIDs.ROMANS) || region.getLegions().length === 0) {
+            return false;
+        }
+
+        return state.hasUnshadedCapability(CapabilityIDs.LEGIO_X);
+    }
+
+    static handleGermanicHorse(state, battleResults, region, attackingFaction, defendingFaction) {
+
+        if ((state.hasUnshadedCapability(
+                CapabilityIDs.GERMANIC_HORSE) && defendingFaction.id === FactionIDs.ROMANS) || state.hasShadedCapability(
+                CapabilityIDs.GERMANIC_HORSE, defendingFaction.id)) {
+            const existingGermanicHorseDeclaration = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
+                                                            interaction => interaction.type === 'GermanicHorseDeclaration' && interaction.regionId === region.id && interaction.respondingFactionId === defendingFaction.id);
+            if (existingGermanicHorseDeclaration) {
+                battleResults.willApplyGermanicHorse = existingGermanicHorseDeclaration.status === 'agreed';
+            }
+            else {
+                battleResults.willApplyGermanicHorse = state.playersByFaction[defendingFaction.id].willApplyGermanicHorse(
+                    state, region, attackingFaction);
+            }
+        }
+    }
+
+    static handleBalearicSlingers(state, battleResults, region, attackingFaction, defendingFaction) {
+
+        if (state.hasUnshadedCapability(CapabilityIDs.BALEARIC_SLINGERS) && attackingFaction.id !== FactionIDs.ROMANS) {
+            const existingBalearicSlingersDeclaration = _.find(
+                state.turnHistory.getCurrentTurn().getCurrentInteractions(),
+                interaction => interaction.type === 'BalearicSlingersDeclaration' && interaction.regionId === region.id && interaction.respondingFactionId === FactionIDs.ROMANS);
+            if (existingBalearicSlingersDeclaration) {
+                battleResults.willApplyBalearicSlingers = existingBalearicSlingersDeclaration.status === 'agreed';
+            }
+            else {
+                battleResults.willApplyBalearicSlingers = state.playersByFaction[FactionIDs.ROMANS].willApplyBalearicSlingers(
+                    state, region, attackingFaction, defendingFaction);
+            }
+        }
+
+        if (battleResults.willApplyBalearicSlingers) {
+            const attackerLosses = Math.floor(
+                Losses.calculateUnmodifiedLosses(state, defendingFaction, region.getWarbandsOrAuxiliaForFaction(FactionIDs.ROMANS),
+                                                 false, battleResults.willApplyGermanicHorse));
+            if (attackerLosses > 0) {
+                const existingLosses = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
+                                              interaction => interaction.type === 'Losses' && interaction.regionId === battleResults.region.id && interaction.respondingFactionId === attackingFaction.id && interaction.balearicSlingers);
+                if (!existingLosses) {
+                    console.log('*** Romans are using their Balearic Slingers *** ');
+                    state.playersByFaction[attackingFaction.id].takeLosses(state, battleResults,
+                                                                           {losses: attackerLosses}, false, true);
+                }
+            }
+        }
+    }
+
+    static simulateBalearicSlingers(state, region, attackingFaction, attackerPieces, defendingFaction) {
+        const attackerLosses = Math.floor(Losses.calculateUnmodifiedLosses(state,
+                                                                           defendingFaction,
+                                                                           region.getWarbandsOrAuxiliaForFaction(FactionIDs.ROMANS),
+                                                                           false,
+                                                                           state.hasUnshadedCapability(CapabilityIDs.GERMANIC_HORSE)));
+
+        // Arverni can use the elite to soak up the losses if lucky
+        if(attackingFaction.id === FactionIDs.ARVERNI && _.find(attackerPieces, {type : 'leader'}) && state.hasShadedCapability(CapabilityIDs.VERCINGETORIXS_ELITE, attackingFaction.id)) {
+            return attackerPieces;
+        }
+
+        return _.drop(Losses.orderPiecesRollsFirst(attackerPieces, false), attackerLosses);
+    }
+
+    static handleMassedGallicArchers(state, battleResults, region, attackingFaction, defendingFaction) {
+        if((attackingFaction.id === FactionIDs.ARVERNI || defendingFaction.id === FactionIDs.ARVERNI) && region.getWarbandsOrAuxiliaForFaction(FactionIDs.ARVERNI).length < 6) {
+            return;
+        }
+
+        const targetFaction = attackingFaction.id === FactionIDs.ARVERNI ? defendingFaction : attackingFaction;
+        const existingLosses = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
+                                          interaction => interaction.type === 'Losses' && interaction.regionId === battleResults.region.id && interaction.respondingFactionId === targetFaction.id && interaction.massedGallicArchers);
+
+        if (!existingLosses) {
+            console.log('*** Arverni are using their Massed Gallic Archers *** ');
+            state.playersByFaction[targetFaction.id].takeLosses(state, battleResults, {losses: 1}, false, true);
+        }
+    }
+
+    static simulateMassedGallicArchers(state, region, attackingFaction, attackingPieces, defendingFaction, defendingPieces, enlistingGermans) {
+        let updatedAttackingPieces = attackingPieces;
+        let updatedDefendingPieces = defendingPieces;
+        if(attackingFaction.id === FactionIDs.ARVERNI && (_.countBy(attackingPieces, 'type').warband || 0) >=6 ) {
+            const rollFirstOrderedPieces = Losses.orderPiecesRollsFirst(defendingPieces, false);
+            const firstPiece = _.first(rollFirstOrderedPieces);
+            if(firstPiece && !firstPiece.canRoll) {
+                const weakestOrderedPieces = Losses.orderPiecesForRemoval(state, defendingPieces, false);
+                updatedDefendingPieces = _.drop(weakestOrderedPieces, 1);
+            }
+        }
+        else if(defendingFaction.id === FactionIDs.ARVERNI && (_.countBy(defendingPieces, 'type').warband || 0) >=6) {
+            const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : null;
+            updatedAttackingPieces = _.drop(Losses.orderPiecesForRemoval(state, attackingPieces, false, helpingFactionId), 1);
+        }
+        return { updatedAttackingPieces, updatedDefendingPieces };
+    }
+
+    static getRetreatDeclaration(state, region, attackingFaction, defendingFaction, noRetreatLosses, retreatLosses) {
 
         const existingRetreatDeclaration = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
-                                      interaction => interaction.type === 'RetreatDeclaration' && interaction.regionId === region.id && interaction.respondingFactionId === defendingFaction.id);
+                                                  interaction => interaction.type === 'RetreatDeclaration' && interaction.regionId === region.id && interaction.respondingFactionId === defendingFaction.id);
 
-        if(existingRetreatDeclaration) {
-            return existingRetreatDeclaration.status === 'agreed';
+        if (existingRetreatDeclaration) {
+            return {willRetreat: existingRetreatDeclaration.status === 'agreed'}
         }
 
         return state.playersByFaction[defendingFaction.id].willRetreat(state, region, attackingFaction,
-                                                                       worstCaseAttackerLosses,
-                                                                       noRetreatDefenderResults,
-                                                                       retreatDefenderResults);
+                                                                       noRetreatLosses,
+                                                                       retreatLosses);
     }
 
     static handleLosses(state, battleResults, attackResults, counterattack) {
         const defender = counterattack ? battleResults.attackingFaction : battleResults.defendingFaction;
+
+        if (battleResults.region.getPiecesForFaction(defender.id).length === 0) {
+            return;
+        }
 
         const existingLosses = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
                                       interaction => interaction.type === 'Losses' && interaction.regionId === battleResults.region.id && interaction.respondingFactionId === defender.id);
@@ -248,7 +487,7 @@ class Battle extends Command {
         const defender = battleResults.defendingFaction;
 
         const existingRetreat = _.find(state.turnHistory.getCurrentTurn().getCurrentInteractions(),
-                                      interaction => interaction.type === 'Retreat' && interaction.regionId === battleResults.region.id && interaction.respondingFactionId === defender.id);
+                                       interaction => interaction.type === 'Retreat' && interaction.regionId === battleResults.region.id && interaction.respondingFactionId === defender.id);
         if (!existingRetreat) {
             state.playersByFaction[defender.id].retreatFromBattle(state, battleResults, attackResults);
         }
@@ -289,36 +528,15 @@ class Battle extends Command {
         return true;
     }
 
-    static calculateUnmodifiedLosses(attackingPieces, counterattack) {
-        let losses = 0;
-        const leader = _.find(attackingPieces, {type: 'leader'});
-        _.each(
-            attackingPieces, function (piece) {
-                if (piece.type === 'warband') {
-                    if (!counterattack && leader && !leader.isSuccessor() && piece.factionId === FactionIDs.BELGAE) {
-                        losses += 1;
-                    }
-                    else {
-                        losses += 0.5;
-                    }
-                }
-                else if (piece.type === 'auxilia') {
-                    losses += 0.5;
-                }
-                else if (piece.type === 'legion') {
-                    if (!counterattack && leader && !leader.isSuccessor() && piece.factionId === FactionIDs.ROMANS) {
-                        losses += 2;
-                    }
-                    else {
-                        losses += 1;
-                    }
-                }
-                else if (piece.type === 'leader') {
-                    losses += 1;
-                }
-            });
+    static hasGuaranteedSafeRetreat(attackingFaction, defendingFaction, region) {
+        if (attackingFaction.id === FactionIDs.ROMANS) {
+            return true;
+        }
 
-        return losses;
+        return _.find(region.adjacent, function (adjacentRegion) {
+            return adjacentRegion.controllingFactionId() === defendingFaction.id;
+        });
+
     }
 
     static calculateLeastAttackResults(orderedFactionPieces, calculatedLosses, ambush) {
@@ -337,7 +555,7 @@ class Battle extends Command {
         };
     }
 
-    static calculateAttackResults(orderedFactionPieces, calculatedLosses) {
+    static calculateMostAttackResults(orderedFactionPieces, calculatedLosses) {
         const targets = _.take(orderedFactionPieces, calculatedLosses);
         const remaining = _.drop(orderedFactionPieces, targets.length);
 
@@ -353,14 +571,18 @@ class Battle extends Command {
         return _.indexOf(typesForRolls, piece.type) >= 0;
     }
 
-    static defenderHasCitadelOrFort(defendingPieces) {
+    static defenderHasCitadelOrFort(state, defendingPieces, ballistae) {
         return _.find(
             defendingPieces, function (piece) {
-                return piece.type === 'citadel' || piece.type === 'fort';
+                return (piece.type === 'citadel' && !ballistae) || piece.type === 'fort';
             });
     }
 
     static canAmbush(state, region, attackingFaction, attackingPieces, defendingPieces) {
+
+        if(attackingFaction.id === FactionIDs.ROMANS) {
+            return false;
+        }
 
         if (attackingFaction.id === FactionIDs.BELGAE || attackingFaction.id === FactionIDs.ARVERNI) {
             const leaderRegion = _.find(state.regions, region => region.getLeaderForFaction(attackingFaction.id));
