@@ -139,11 +139,11 @@ class FallingSkyGameState extends GameState {
         console.log('Discarded: ' + this.discard().length);
         if (this.currentCard()) {
             console.log('Current Card: ');
-            console.log('    ' + this.currentCard().toString());
+            console.log('    ' + this.currentCard().id + ' - ' + this.currentCard().title);
         }
         if (this.upcomingCard()) {
             console.log('Upcoming Card: ');
-            console.log('    ' + this.upcomingCard().toString());
+            console.log('    ' + this.upcomingCard().id + ' - ' + this.upcomingCard().title);
         }
         if (this.capabilities().length > 0) {
             console.log('Capabilities: ');
