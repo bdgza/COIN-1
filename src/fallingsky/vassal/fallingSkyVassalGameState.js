@@ -453,10 +453,51 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     }
 
     this.setYearsRemaining(this.totalWinters - this.numberDiscardedWinter - 1);
+
+    this.lastTurn = ko.observable();
   }
 
   toJSON() {
     return "{}";
+  }
+
+  playTurn() {
+    if (this.currentCard().type === 'winter') {
+      Winter.executeWinter(this);
+      //this.lastTurn(this.state().turnHistory.lastTurn());
+      //this.state().startYear();
+      //this.drawCard();
+      return;
+    }
+
+    const nextFaction = this.sequenceOfPlay.nextFaction(this.currentCard());
+    console.log('* Next Faction: ' + nextFaction);
+
+    const player = this.playersByFaction[nextFaction];
+    this.turnHistory.startTurn(nextFaction);
+    try {
+      player.takeTurn(this, this.turnHistory.currentTurn);
+      this.lastTurn(this.turnHistory.lastTurn());
+      const instructions = this.turnHistory.lastTurn().getInstructions(this);
+      instructions.forEach(function(element) {
+        const types = {'command': 'COMMAND', 'sa': 'SPECIAL ABILITY', 'event': 'EVENT', 'action': '--> DO'};
+        let prefix = ' ';
+        if (element.type != 'action') {
+          console.log('M=');
+          prefix = '*';
+        }
+        console.log('M' + prefix + types[element.type] + ': ' + element.instruction);
+      }, this);
+    } catch(err) {
+      if(err.name === 'PlayerInteractionNeededError') {
+        console.log('* PlayerInteractionRequested');
+        console.log(err);
+        Events.emit('PlayerInteractionRequested', err.interaction);
+      }
+      else {
+        throw err;
+      }
+    }
   }
 }
 

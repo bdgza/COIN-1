@@ -29,7 +29,9 @@ module.exports = {
 
       var json = JSON.parse(data.toString());
       const game = new FallingSkyVassalGameState(json);
-      game.logState();
+      //game.logState();
+
+      game.playTurn();
     });
   }
 };
