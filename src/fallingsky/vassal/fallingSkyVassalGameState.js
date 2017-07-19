@@ -18,6 +18,10 @@ import BelgaeBot from '../bots/belgae/belgaeBot';
 import GermanicBot from '../bots/germanic/germanicBot';
 import HumanPlayer from 'fallingsky/player/humanPlayer';
 import {CapabilityStates} from '../config/capabilities';
+import {CapabilityIDs} from '../config/capabilities';
+import Card from '../../common/card';
+import EventCardDefinitions from '../config/eventCards';
+import CardTypes from '../config/cardTypes';
 
 import PlaceWarbands from '../actions/placeWarbands';
 import PlaceAlliedTribe from '../actions/placeAlliedTribe';
@@ -27,6 +31,7 @@ import PlaceAuxilia from '../actions/placeAuxilia';
 import PlaceFort from '../actions/placeFort';
 import PlaceLegions from '../actions/placeLegions';
 import RevealPieces from '../actions/revealPieces';
+import AddCapability from '../actions/addCapability';
 
 import DisperseTribe from '../actions/disperseTribe';
 import UndisperseTribe from '../actions/undisperseTribe';
@@ -304,28 +309,42 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     let romanLegionsFallen = 0;
     for (z = 0; z < json.zones.length; z++) {
         zone = json.zones[z];
-        //console.log('OTHER ZONE: ' + zone.name);
 
         for (p = 0; p < zone.pieces.length; p++) {
           let pieceName = zone.pieces[p].name;
 
           if (zone.name == 'Upcoming') {
-            // TODO: upcoming card
-            // game.upcomingcard = {name: pieceName, num: parseInt(pieceName.substring(0, 2))};
-            // if (game.upcomingcard.name.endsWith(' - Winter'))
-            //   game.frost = true;
+            let nextcard = {name: pieceName, num: parseInt(pieceName.substring(0, 2))};
+            if (nextcard.name.endsWith(' - Winter')) {
+              this.frost(true);
+              this.upcomingCard(new Card(
+                    {
+                        id: 'winter',
+                        type: CardTypes.WINTER,
+                        title: 'Winter'
+                    }));
+            } else {
+              this.upcomingCard(EventCardDefinitions[nextcard.num - 1]);
+            }
           }
 
           if (zone.name == 'Current') {
-            // TODO: current card
-            // game.currentcard = {name: pieceName, num: parseInt(pieceName.substring(0, 2))};
-            // if (game.currentcard.name.endsWith(' - Winter'))
-            //   game.winter = true;
+            let thiscard = {name: pieceName, num: parseInt(pieceName.substring(0, 2))};
+            if (thiscard.name.endsWith(' - Winter')) {
+              this.frost(true);
+              this.upcomingCard(new Card(
+                    {
+                        id: 'winter',
+                        type: CardTypes.WINTER,
+                        title: 'Winter'
+                    }));
+            } else {
+              this.currentCard(EventCardDefinitions[thiscard.num - 1]);
+            }
           }
 
           if (zone.name == 'Senate - Uproar')
             if (pieceName == 'Roman Senate') {
-              console.log('UPROAR');
               this.romans.setSenateApproval(SenateApprovalStates.UPROAR);
             }
           if (zone.name == 'Senate - Intrigue')
@@ -342,7 +361,7 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
               romanLegionsFallen++;
         }
     }
-    console.log('legion track: ' + romanLegionsTrack);
+    
     if (romanLegionsTrack > 0)
       this.romans.initializeLegionTrack(SenateApprovalStates.ADULATION, romanLegionsTrack > 4 ? 4 : romanLegionsTrack);
     romanLegionsTrack -= 4;
@@ -352,25 +371,39 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     if (romanLegionsTrack > 0)
       this.romans.initializeLegionTrack(SenateApprovalStates.UPROAR, romanLegionsTrack);
     
-    console.log('fallen: ' + romanLegionsFallen);
     this.romans.returnLegions(this.romans.availableLegions().splice(0, romanLegionsFallen));
 
     // process offboard
 
     this.numberDiscards = 0;
     this.numberDeck = 0;
+    this.numberDiscardedWinter = 0;
 
     for (p = 0; p < json.offboard.length; p++) {
       pieceName = json.offboard[p].name;
 
-      if (pieceName.indexOf(' Capability **') > -1) {
-        // TODO: Capabilities
-        // var cardName = pieceName.substring(0, pieceName.indexOf(' **'));
-        // var cardNumber = parseInt(pieceName.substring(0, 2));
-        // var shadedCapability = pieceName.indexOf('** Shaded ') > -1;
-        // var cap = {card: cardName, num: cardNumber, shaded: shadedCapability}; 
-        // game.capabilities.push(cap);
-        // console.log('Capability: ', cap);
+      if (pieceName.indexOf(' Capability ') > -1) {
+        let cardName = pieceName.substring(0, pieceName.indexOf(' **'));
+        let cardNumber = parseInt(pieceName.substring(0, 2));
+        let shadedCapability = pieceName.indexOf('** Shaded ') > -1;
+        let factionName = pieceName.substring(pieceName.indexOf('(') + 1, pieceName.indexOf(')'));
+        
+        let factionId = '';
+        if (factionName === 'Roman')
+          factionId = FactionIDs.ROMANS;
+        if (factionName === 'Arverni')
+          factionId = FactionIDs.ARVERNI;
+        if (factionName === 'Aedui')
+          factionId = FactionIDs.AEDUI;
+        if (factionName === 'Belgic')
+          factionId = FactionIDs.BELGAE;
+        
+        AddCapability.execute(this,
+          {
+            id: cardNumber,
+            state: shadedCapability ? CapabilityStates.SHADED : CapabilityStates.UNSHADED,
+            factionId: factionId
+          });
       }
 
       // number of cards on the discard pile
@@ -379,6 +412,9 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
         startIndex = pieceName.indexOf('(') + 1;
         endIndex = pieceName.indexOf(' C');
         this.numberDiscards = parseInt(pieceName.substring(startIndex, endIndex));
+
+        for (let d = 0; d < this.numberDiscards; d++)
+          this.discard().push(EventCardDefinitions[0]);
       }
 
       // number of cards on the draw deck
@@ -387,23 +423,41 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
         startIndex = pieceName.indexOf('(') + 1;
         endIndex = pieceName.indexOf(' C');
         this.numberDeck = parseInt(pieceName.substring(startIndex, endIndex));
+
+        for (let d = 0; d < this.numberDeck; d++)
+          this.deck().push(EventCardDefinitions[0]);
+      }
+
+      // winter on discard
+      if (pieceName.endsWith(' - Winter')) {
+        this.numberDiscardedWinter++;
       }
     }
 
     // determine number of cards used (for scenario)
     
-    this.totalCards = this.numberDiscards + this.numberDeck; // TODO: plus current + upcoming
+    this.totalCards = this.numberDiscards + this.numberDeck;
+    if (this.upcomingCard()) this.totalCards++;
+    if (this.currentCard()) this.totalCards++;
+    this.totalCards += this.capabilities().length;
 
-    console.log('CARDS = ', this.totalCards);
+    if (this.totalCards == 48) {
+      // The Great Revolt
+      this.totalWinters = 3;
+    } else if (this.totalCards == 64) {
+      // Reconquest of Gaul
+      this.totalWinters = 4;
+    } else if (this.totalCards == 75) {
+      // Pax Gallica
+      this.totalWinters = 5;
+    }
+
+    this.setYearsRemaining(this.totalWinters - this.numberDiscardedWinter - 1);
   }
 
   toJSON() {
     return "{}";
   }
-
-  // UTILITIES
-
-
 }
 
 export default FallingSkyVassalGameState;
