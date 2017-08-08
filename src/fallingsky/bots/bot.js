@@ -34,17 +34,30 @@ class Bot extends FallingSkyPlayer {
 
     }
 
-    placeLeader(state) {
+    placeLeader(state, allowMove = false, regionIds = null) {
         const faction = state.factionsById[this.factionId];
-        if (faction.hasAvailableLeader()) {
-            const region = _(state.regions).map((region) => {
+        const region = _(state.regions).filter(region=> regionIds ? _.indexOf(regionIds, region.id) >= 0 : true).map((region) => {
                 const pieces = region.piecesByFaction()[this.factionId] || [];
                 return {
                     region: region,
                     numPieces: pieces.length
                 }
             }).sortBy('numPieces').groupBy('numPieces').map(_.shuffle).flatten().map('region').reverse().first();
+
+        if (faction.hasAvailableLeader()) {
             PlaceLeader.execute(state, {factionId: faction.id, regionId: region.id});
+        }
+        else if(allowMove) {
+            const leaderRegion = _.find(state.regions, region=> region.getLeaderForFaction(this.factionId));
+            if(leaderRegion && leaderRegion.id !== region.id) {
+                const leader = leaderRegion.getLeaderForFaction(this.factionId);
+                MovePieces.execute(state, {
+                    factionId: this.factionId,
+                    sourceRegionId: leaderRegion.id,
+                    destRegionId: region.id,
+                    pieces: [leader]
+                });
+            }
         }
     }
 
@@ -227,9 +240,17 @@ class Bot extends FallingSkyPlayer {
         const helpingFactionId = (amAttacker && battleResults.willEnlistGermans) ? FactionIDs.GERMANIC_TRIBES : null;
 
         const targets = _.clone(Losses.orderPiecesForRemoval(state, myPieces, battleResults.willRetreat, helpingFactionId));
-        const losses = attackResults.losses;
+        let losses = attackResults.losses;
 
         const removed = [];
+
+        if(battleResults.legiones) {
+            const legionIndex = _.findIndex(targets, { type: 'legion'});
+            if(legionIndex >= 0) {
+                losses -= 1;
+                removed.push(_.first(_.pullAt(targets,[legionIndex])));
+            }
+        }
 
         if(targets.length > 0) {
             _.each(_.range(0, losses), (index) => {
@@ -351,6 +372,16 @@ class Bot extends FallingSkyPlayer {
                 }
             }).sortBy('numFriendly').groupBy('numFriendly').map(_.shuffle).flatten().reverse().map('region').first();
 
+    }
+
+    removePieces(state, region, numPieces) {
+        const pieces = region.getPiecesForFaction(this.factionId);
+        const piecesToRemove = _.take(Losses.orderPiecesForRemoval(state, pieces), numPieces);
+        RemovePieces.execute(state, {
+            factionId: this.factionId,
+            regionId: region.id,
+            pieces: piecesToRemove
+        });
     }
 }
 

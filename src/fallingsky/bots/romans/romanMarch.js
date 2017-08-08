@@ -1,6 +1,7 @@
 import _ from '../../../lib/lodash';
 import CommandIDs from '../../config/commandIds';
 import FactionIDs from '../../config/factionIds';
+import {CapabilityIDs} from 'fallingsky/config/capabilities';
 import RegionGroups from '../../config/regionGroups';
 import RegionIDs from '../../config/regionIds';
 import March from '../../commands/march';
@@ -43,8 +44,10 @@ class RomanMarch {
                                 destRegionId: group.targetDestination.id,
                                 pieces: this.getPiecesToMoveForRegion(march.region, group.pieceData)
                             });
-                        if(group.pieceData.harassedAuxilia > 0) {
-                            const harassedPieces = _.take(march.region.getWarbandsOrAuxiliaForFaction(FactionIDs.ROMANS), group.pieceData.harassedAuxilia);
+                        if (group.pieceData.harassedAuxilia > 0) {
+                            const harassedPieces = _.take(
+                                march.region.getWarbandsOrAuxiliaForFaction(FactionIDs.ROMANS),
+                                group.pieceData.harassedAuxilia);
                             RemovePieces.execute(state, {
                                 factionId: FactionIDs.ROMANS,
                                 regionId: march.region.id,
@@ -103,7 +106,7 @@ class RomanMarch {
     }
 
     static getAffordableMarches(state, modifiers, allMarches) {
-        return modifiers.free ? allMarches : _.reduce(allMarches, (accumulator, march) => {
+        return modifiers.free || state.hasUnshadedCapability(CapabilityIDs.BAGGAGE_TRAINS, FactionIDs.ROMANS) ? allMarches : _.reduce(allMarches, (accumulator, march) => {
             if (accumulator.resourcesRemaining >= march.cost) {
                 accumulator.resourcesRemaining -= march.cost;
                 accumulator.marches.push(march);
@@ -252,8 +255,8 @@ class RomanMarch {
                        const ordered = _([first, second]).sortBy('numLegions').value();
                        const target = _.first(ordered);
                        const otherTarget = _.last(ordered);
-                       const targetDest = (first.destination.id === choiceData.firstDest.destination.id) ? choiceData.firstDest : choiceData.secondDest;
-                       const otherDest = (first.destination.id === choiceData.firstDest.destination.id) ? choiceData.secondDest : choiceData.firstDest;
+                       const targetDest = (target.destination.id === choiceData.firstDest.destination.id) ? choiceData.firstDest : choiceData.secondDest;
+                       const otherDest = (target.destination.id === choiceData.firstDest.destination.id) ? choiceData.secondDest : choiceData.firstDest;
 
                        if (!choiceData.canSplit) {
                            target.numLegions += choiceData.data.numLegions;
@@ -265,6 +268,7 @@ class RomanMarch {
                            regionData.numAuxilia += numArrivingAuxilia;
                            regionData.harassedAuxilia += targetDest.harassmentLosses;
                            regionData.leader = choiceData.data.leader;
+                           choiceData.placed = true;
                            return;
                        }
 
@@ -289,25 +293,31 @@ class RomanMarch {
             // Partition greedily Auxilia, and place Leader
             _.each(_(groupedByChoice.both).sortBy(choiceData => choiceData.data.numAuxilia).reverse().value(),
                    choiceData => {
-                       // Legions we know exactly how many so we can just do them.
+                       if (!choiceData.canSplit && choiceData.placed) {
+                           return;
+                       }
+
                        const ordered = _([first, second]).sortBy('numAuxilia').value();
                        const target = _.first(ordered);
-                       const targetDest = (first.destination.id === choiceData.firstDest.destination.id) ? choiceData.firstDest : choiceData.secondDest;
+                       const targetDest = (target.destination.id === choiceData.firstDest.destination.id) ? choiceData.firstDest : choiceData.secondDest;
                        const otherTarget = _.last(ordered);
 
                        // We've placed legions to the best of our ability so we go ahead and place the leader if he hasn't already gone
                        if (!first.leader && !second.leader && choiceData.data.leader) {
                            let leaderTarget;
+                           let leaderTargetDest;
                            if (first.numLegions === second.numLegions) {
                                leaderTarget = choiceData.firstDest.distance > choiceData.secondDest.distance ? first : second;
+                               leaderTargetDest = choiceData.firstDest.distance > choiceData.secondDest.distance ? choiceData.firstDest : choiceData.secondDest;
                            }
                            else {
                                leaderTarget = first.numLegions > second.numLegions ? first : second;
+                               leaderTargetDest = first.numLegions > second.numLegions ? choiceData.firstDest  : choiceData.secondDest;
                            }
                            leaderTarget.leader = choiceData.data.leader;
                            leaderTarget.piecesFromRegion[choiceData.data.march.region.id].leader = true;
-                           if (targetDest.harassmentLosses > 0 && leaderTarget.piecesFromRegion[choiceData.data.march.region.id].numAuxilia === 0) {
-                               leaderTarget.piecesFromRegion[choiceData.data.march.region.id].harassedAuxilia = targetDest.harassmentLosses;
+                           if (leaderTargetDest.harassmentLosses > 0 && leaderTarget.piecesFromRegion[choiceData.data.march.region.id].harassedAuxilia === 0) {
+                               leaderTarget.piecesFromRegion[choiceData.data.march.region.id].harassedAuxilia = leaderTargetDest.harassmentLosses;
                            }
                        }
 
@@ -336,8 +346,8 @@ class RomanMarch {
                         Math.min(imbalance, regionPieces.numAuxilia - harassmentLosses) / 2);
 
                     if (piecesToMove > 0) {
-                        bigger.numAuxilia -= piecesToMove;
-                        regionPieces.numAuxilia -= piecesToMove;
+                        bigger.numAuxilia -= (piecesToMove + harassmentLosses);
+                        regionPieces.numAuxilia -= piecesToMove + harassmentLosses;
                         smaller.numAuxilia += piecesToMove;
                         smaller.piecesFromRegion[regionPieces.regionId].numAuxilia += piecesToMove;
                         if (harassmentLosses) {
@@ -454,7 +464,7 @@ class RomanMarch {
             return sum + data.march.cost;
         }, 0);
 
-        if (!modifiers.free && state.romans.resources() < cost) {
+        if (!modifiers.free  && !state.hasUnshadedCapability(CapabilityIDs.BAGGAGE_TRAINS, FactionIDs.ROMANS) && state.romans.resources() < cost) {
             return [];
         }
 
@@ -468,7 +478,8 @@ class RomanMarch {
             return [];
         }
 
-        const populatedDestinations = this.calculatePiecesToDestinations(state, modifiers, marchData, possibleDestinations);
+        const populatedDestinations = this.calculatePiecesToDestinations(state, modifiers, marchData,
+                                                                         possibleDestinations);
         this.determineBattleLossesForTargets(state, modifiers, marchData, populatedDestinations);
         const actualDestination = _(populatedDestinations).sortBy('losses').first();
         if (!actualDestination) {
@@ -476,25 +487,25 @@ class RomanMarch {
         }
 
         const marches = _(actualDestination.piecesFromRegion).map((regionData) => {
-                const region = state.regionsById[regionData.regionId];
-                const pieces = this.getPiecesToMoveForRegion(region, regionData);
-                if (pieces.length > 0) {
-                    return {
-                        region: region,
-                        groups: [{
-                            targetDestination: actualDestination.destination,
-                            pieceData: regionData,
-                        }]
-                    };
-                }
-            }).compact().value();
+            const region = state.regionsById[regionData.regionId];
+            const pieces = this.getPiecesToMoveForRegion(region, regionData);
+            if (pieces.length > 0) {
+                return {
+                    region: region,
+                    groups: [{
+                        targetDestination: actualDestination.destination,
+                        pieceData: regionData,
+                    }]
+                };
+            }
+        }).compact().value();
 
         _.each(marches, (march) => {
             const marchResult = _.find(marchData, entry => entry.march.region.id === march.region.id);
             march.cost = marchResult.march.cost;
         });
 
-        return modifiers.free ? marches : _.reduce(marches, (accumulator, march) => {
+        return modifiers.free || state.hasUnshadedCapability(CapabilityIDs.BAGGAGE_TRAINS, FactionIDs.ROMANS)? marches : _.reduce(marches, (accumulator, march) => {
             if (accumulator.resourcesRemaining >= march.cost) {
                 accumulator.resourcesRemaining -= march.cost;
                 accumulator.marches.push(march);
@@ -517,7 +528,11 @@ class RomanMarch {
             };
 
             _.each(marchData, data => {
-                const targetDestData = _.find(data.prioritizedDestinations, marchDest => marchDest.destination.id === target.destination.id);
+                const targetDestData = _.find(data.prioritizedDestinations,
+                                              marchDest => marchDest.destination.id === target.destination.id);
+                if (!targetDestData) {
+                    return;
+                }
                 target.numLegions += data.numLegions;
                 target.numAuxilia += data.numAuxilia - targetDestData.harassmentLosses;
                 target.leader = data.leader;
@@ -677,11 +692,11 @@ class RomanMarch {
 
         if (!alreadyMarchedById[march.region.id]) {
             alreadyMarchedById[march.region.id] = true;
-            if (romans.resources() < march.cost && !modifiers.free) {
+            if (romans.resources() < march.cost && !modifiers.free && !state.hasUnshadedCapability(CapabilityIDs.BAGGAGE_TRAINS, FactionIDs.ROMANS)) {
                 return false;
             }
 
-            if (!modifiers.free) {
+            if (!modifiers.free && !state.hasUnshadedCapability(CapabilityIDs.BAGGAGE_TRAINS,FactionIDs.ROMANS)) {
                 RemoveResources.execute(state, {factionId: FactionIDs.ROMANS, count: march.cost});
             }
             HidePieces.execute(

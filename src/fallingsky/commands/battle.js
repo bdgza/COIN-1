@@ -17,16 +17,17 @@ class Battle extends Command {
 
         const attackingFaction = args.attackingFaction;
         const defendingFaction = args.defendingFaction;
+        const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : args.helpingFactionId;
+        const aduataca = args.aduataca;
+        const shadedMorasses = args.shadedMorasses;
 
         let attackingPieces = region.getPiecesForFaction(attackingFaction.id);
-        if (enlistingGermans) {
-            const germanicPieces = region.getPiecesForFaction(FactionIDs.GERMANIC_TRIBES);
-            attackingPieces = _.concat(attackingPieces, germanicPieces);
+        if(helpingFactionId) {
+            const helpingPieces = region.getPiecesForFaction(helpingFactionId);
+            attackingPieces = _.concat(attackingPieces, helpingPieces)
         }
         let defendingPieces = args.defendingPieces || region.getPiecesForFaction(defendingFaction.id);
-        const canAmbush = !enlistingGermans &&
-                          this.canAmbush(state, region, attackingFaction, attackingPieces, defendingPieces);
-
+        const canAmbush = shadedMorasses || aduataca || (!enlistingGermans && this.canAmbush(state, region, attackingFaction, attackingPieces, defendingPieces));
 
         if(defendingFaction.id === FactionIDs.ROMANS && state.hasUnshadedCapability(CapabilityIDs.BALEARIC_SLINGERS)) {
             attackingPieces = this.simulateBalearicSlingers(state, region, attackingFaction, attackingPieces, defendingFaction);
@@ -34,7 +35,7 @@ class Battle extends Command {
 
         if(state.hasShadedCapability(CapabilityIDs.MASSED_GALLIC_ARCHERS)) {
             const {updatedAttackingPieces, updatedDefendingPieces} = this.simulateMassedGallicArchers(state, region, attackingFaction, attackingPieces, defendingFaction,
-                                               defendingPieces);
+                                               defendingPieces, helpingFactionId);
 
             attackingPieces = updatedAttackingPieces;
             defendingPieces = updatedDefendingPieces;
@@ -54,7 +55,7 @@ class Battle extends Command {
 
         // No Retreat
         let noRetreatDefenderLosses = unmodifiedDefenderLosses;
-        if (this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
+        if (!aduataca && this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
             noRetreatDefenderLosses /= 2;
         }
         else if (withGermanicHorse && state.hasShadedCapability(CapabilityIDs.GERMANIC_HORSE, attackingFaction.id) && !this.defenderHasCitadelOrFort(state, defendingPieces)) {
@@ -108,8 +109,6 @@ class Battle extends Command {
             worstCaseAttackerLosses += 2;
         }
         const worstCaseAttackerLossesAmbush = defenderCanCounterattackAmbush ? worstCaseAttackerLosses : 0;
-
-        const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : null;
         const orderedAttackingPieces = Losses.orderPiecesForRemoval(state, attackingPieces, false, helpingFactionId);
         const worstCaseCounterattackResults = this.calculateMostAttackResults(orderedAttackingPieces,
                                                                               worstCaseAttackerLosses,
@@ -122,10 +121,15 @@ class Battle extends Command {
             [(defenderCanRetreat ? worstCaseRetreatDefenderResults.targets.length : worstCaseNoRetreatDefenderResults.targets.length), worstCaseNoRetreatDefenderResults.targets.length, defendingPieces.length]);
         const worstCaseDefenderLossesAmbush = worstCaseNoRetreatDefenderResultsWithAmbush.targets.length;
 
+        let cost = (region.devastated() ? 2 : 1) * (attackingFaction.id === FactionIDs.ROMANS ? 2 : 1);
+
+        if(attackingFaction.id === FactionIDs.AEDUI && state.hasShadedCapability(CapabilityIDs.CONVICTOLITAVIS)) {
+            cost *= 2;
+        }
         return new BattleResults(
             {
                 region: region,
-                cost: (region.devastated() ? 2 : 1) * (attackingFaction.id === FactionIDs.ROMANS ? 2 : 1),
+                cost: cost,
 
                 attackingFaction: attackingFaction,
                 defendingFaction: defendingFaction,
@@ -135,6 +139,7 @@ class Battle extends Command {
 
                 canAmbush: canAmbush,
                 enlistingGermans: enlistingGermans,
+                helpingFactionId: helpingFactionId,
                 defenderCanRetreat: defenderCanRetreat,
                 defenderCanGuaranteeSafeRetreat: defenderCanGuaranteeSafeRetreat,
                 defenderCanCounterattack: {normal: defenderCanCounterattack, ambush: defenderCanCounterattackAmbush},
@@ -163,10 +168,11 @@ class Battle extends Command {
         const attackingPlayer = state.playersByFaction[attackingFaction.id];
         const defendingPlayer = state.playersByFaction[defendingFaction.id];
         const enlistingGermans = battleResults.willEnlistGermans;
+        const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : battleResults.helpingFactionId;
         const ambush = battleResults.willAmbush;
 
         console.log(
-            attackingFaction.name + ' is battling ' + defendingFaction.name + ' in region ' + region.name + (enlistingGermans ? ' with German help' : '' ));
+            attackingFaction.name + ' is battling ' + defendingFaction.name + ' in region ' + region.name + (helpingFactionId ? ' with ' + helpingFactionId + ' help' : '' ));
         console.log('*** Battleground: ***');
         region.logState();
         console.log('*** Battle: ***');
@@ -174,7 +180,6 @@ class Battle extends Command {
             console.log(attackingFaction.name + ' is ambushing!');
         }
 
-        let attackingPieces = Battle.getAttackingPieces(battleResults);
         this.handleGermanicHorse(state, battleResults, region, attackingFaction, defendingFaction);
 
         if (!battleResults.handledBalearicSlingers) {
@@ -190,7 +195,7 @@ class Battle extends Command {
         }
 
         // We may have removed some attackers or defenders in balearic slingers or massed gallic archers
-        attackingPieces = Battle.getAttackingPieces(battleResults);
+        let attackingPieces = Battle.getAttackingPieces(battleResults);
 
         if (!battleResults.calculatedDefenderResults) {
             const defendingPieces = Battle.getDefendingPieces(battleResults);
@@ -203,7 +208,7 @@ class Battle extends Command {
             }
             // No Retreat
             let noRetreatDefenderLosses = unmodifiedDefenderLosses;
-            if (this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
+            if (!battleResults.aduataca && this.defenderHasCitadelOrFort(state, defendingPieces, state.hasUnshadedCapability(CapabilityIDs.BALLISTAE, attackingFaction.id))) {
                 noRetreatDefenderLosses /= 2;
             }
             else if (battleResults.willApplyGermanicHorse && attackingFaction.id !== FactionIDs.ROMANS && state.hasShadedCapability(
@@ -326,9 +331,9 @@ class Battle extends Command {
 
     static getAttackingPieces(battleResults) {
         let pieces = battleResults.region.getPiecesForFaction(battleResults.attackingFaction.id);
-        if(battleResults.willEnlistGermans) {
-            const germans = battleResults.region.getPiecesForFaction(FactionIDs.GERMANIC_TRIBES);
-            pieces = _.concat(pieces,germans);
+        if(battleResults.helpingFactionId) {
+            const helpingFactionPieces = battleResults.region.getPiecesForFaction(battleResults.helpingFactionId);
+            pieces = _.concat(pieces,helpingFactionPieces);
         }
         // diviciacus too
 
@@ -432,7 +437,7 @@ class Battle extends Command {
         }
     }
 
-    static simulateMassedGallicArchers(state, region, attackingFaction, attackingPieces, defendingFaction, defendingPieces, enlistingGermans) {
+    static simulateMassedGallicArchers(state, region, attackingFaction, attackingPieces, defendingFaction, defendingPieces, helpingFactionId) {
         let updatedAttackingPieces = attackingPieces;
         let updatedDefendingPieces = defendingPieces;
         if(attackingFaction.id === FactionIDs.ARVERNI && (_.countBy(attackingPieces, 'type').warband || 0) >=6 ) {
@@ -444,7 +449,6 @@ class Battle extends Command {
             }
         }
         else if(defendingFaction.id === FactionIDs.ARVERNI && (_.countBy(defendingPieces, 'type').warband || 0) >=6) {
-            const helpingFactionId = enlistingGermans ? FactionIDs.GERMANIC_TRIBES : null;
             updatedAttackingPieces = _.drop(Losses.orderPiecesForRemoval(state, attackingPieces, false, helpingFactionId), 1);
         }
         return { updatedAttackingPieces, updatedDefendingPieces };

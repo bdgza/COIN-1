@@ -12,6 +12,7 @@ class SequenceOfPlay {
         this.ineligibleFactions = ko.observableArray();
         this.passedFactions = ko.observableArray();
         this.forcedEligibleFactionIds = ko.observableArray();
+        this.forcedIneligibleFactionIds = ko.observableArray();
         this.currentSequenceForCard = ko.observable(new SequenceForCard({ eligible: _.clone(this.eligibleFactions())}));
         this.state = state;
 
@@ -58,12 +59,14 @@ class SequenceOfPlay {
         });
         this.passedFactions([]);
         _.each(this.ineligibleFactions(), (factionId) => {
-            this.eligibleFactions.push(factionId);
+            if(_.indexOf(this.forcedIneligibleFactionIds(), factionId) < 0) {
+                this.eligibleFactions.push(factionId);
+            }
         });
 
         const newlyIneligible = [];
         if (this.firstFaction()) {
-            if (_.indexOf(this.forcedEligibleFactionIds(), this.firstFaction().id) >= 0) {
+            if (_.indexOf(this.forcedEligibleFactionIds(), this.firstFaction()) >= 0) {
                 this.eligibleFactions.push(this.firstFaction());
             }
             else {
@@ -71,14 +74,14 @@ class SequenceOfPlay {
             }
         }
         if (this.secondFaction()) {
-            if (_.indexOf(this.forcedEligibleFactionIds(), this.secondFaction().id) >= 0) {
+            if (_.indexOf(this.forcedEligibleFactionIds(), this.secondFaction()) >= 0) {
                 this.eligibleFactions.push(this.secondFaction());
             }
             else {
                 newlyIneligible.push(this.secondFaction());
             }
         }
-        this.ineligibleFactions(newlyIneligible);
+        this.ineligibleFactions(_.union(newlyIneligible, this.forcedIneligibleFactionIds()));
         this.history.push(this.currentSequenceForCard());
         this.currentSequenceForCard(new SequenceForCard({
             eligible: _.clone(this.eligibleFactions()),
@@ -90,6 +93,7 @@ class SequenceOfPlay {
         this.firstActionChosen(null);
         this.secondActionChosen(null);
         this.forcedEligibleFactionIds([]);
+        this.forcedIneligibleFactionIds([]);
     }
 
     resetEligibility() {
@@ -131,8 +135,22 @@ class SequenceOfPlay {
         this.forcedEligibleFactionIds.push(factionId);
     }
 
+    ineligibleThroughNext(factionId) {
+        if(this.eligibleFactions.remove(factionId).length > 0) {
+            this.ineligibleFactions.push(factionId);
+        }
+        if(this.passedFactions.remove(factionId).length > 0) {
+            this.ineligibleFactions.push(factionId);
+        }
+        this.forcedIneligibleFactionIds.push(factionId);
+    }
+
     canUndo() {
         return this.currentSequenceForCard().numActionsTaken() > 0 || this.history().length > 0;
+    }
+
+    isStartOfCard() {
+        return this.currentSequenceForCard().numActionsTaken() === 0;
     }
 
     undo() {

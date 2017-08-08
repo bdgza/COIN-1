@@ -31,7 +31,9 @@ class BelgaeMarch {
     static threatMarch(state, modifiers) {
         const belgae = state.belgae;
         const threatRegions = modifiers.context.threatRegions;
-        const marchResults = March.test(state, {factionId: FactionIDs.BELGAE});
+        let marchResults = _.filter(March.test(state, {factionId: FactionIDs.BELGAE}),
+                                    march => _.indexOf(modifiers.allowedRegions, march.region.id) >= 0);
+
         const largestBelgaeGroup = _.reduce(
             state.regions, (largest, region) => {
                 const numBelgaeForRegion = (region.piecesByFaction()[FactionIDs.BELGAE] || []).length;
@@ -42,7 +44,8 @@ class BelgaeMarch {
                 return largest;
             }, {region: null, numBelgae: 0});
 
-        const necessaryMarches = _(marchResults).filter(marchResult => (belgae.resources() >= marchResult.cost) || modifiers.free).filter(
+        const necessaryMarches = _(marchResults).filter(
+            marchResult => (belgae.resources() >= marchResult.cost) || modifiers.free).filter(
             (marchResult) => {
                 if (_.indexOf(threatRegions, marchResult.region.id) >= 0) {
                     return true;
@@ -64,9 +67,10 @@ class BelgaeMarch {
                     return false;
                 }
 
-                if(!modifiers.free) {
-                    RemoveResources.execute(state, { factionId: FactionIDs.BELGAE, count: march.cost});
+                if (!modifiers.free) {
+                    RemoveResources.execute(state, {factionId: FactionIDs.BELGAE, count: march.cost});
                 }
+
                 const destination = _(solutions).map(
                     (arr) => {
                         const adjacentRegionsById = _.keyBy(march.region.adjacent, 'id');
@@ -82,7 +86,7 @@ class BelgaeMarch {
                                 return sum;
                             });
 
-                        const priority = 'a' + (99-numBelgaeForRegion) + '-' + (99-numAdjacentWithBelgic);
+                        const priority = 'a' + (99 - numBelgaeForRegion) + '-' + (99 - numAdjacentWithBelgic);
                         return {
                             region,
                             numPieces: numBelgaeForRegion,
@@ -92,20 +96,29 @@ class BelgaeMarch {
                     }).sortBy('priority').groupBy('priority').map(_.shuffle).flatten().first();
 
                 const piecesToMove = march.region.getMobilePiecesForFaction(FactionIDs.BELGAE);
+
+                HidePieces.execute(state, {
+                    factionId: belgae.id,
+                    regionId: march.region.id
+                });
+
                 MovePieces.execute(
                     state, {
                         sourceRegionId: march.region.id,
                         destRegionId: destination.region.id,
                         pieces: piecesToMove
                     });
-                if(destination.region.id === RegionIDs.BRITANNIA || march.region.id === RegionIDs.BRITANNIA) {
+                if (destination.region.id === RegionIDs.BRITANNIA || march.region.id === RegionIDs.BRITANNIA) {
                     wasBritannia = true;
                 }
                 effective = true;
 
+                if (modifiers.limited) {
+                    return false;
+                }
             });
 
-        if(!effective) {
+        if (!effective) {
             state.turnHistory.getCurrentTurn().rollbackCommand();
             return false;
         }
@@ -118,38 +131,70 @@ class BelgaeMarch {
 
     static controlMarch(state, modifiers) {
         const belgae = state.belgae;
-        const marchResults = _.filter(March.test(state, {factionId: FactionIDs.BELGAE}), marchResult => (belgae.resources() >= marchResult.cost) || modifiers.free);
+
+        let marchResults = _.filter(March.test(state, {factionId: FactionIDs.BELGAE}),
+                                    marchResult => ((belgae.resources() >= marchResult.cost) || modifiers.free) && _.indexOf(
+                                        modifiers.allowedRegions, marchResult.region.id) >= 0);
+
+        if (modifiers.context.monsCevenna) {
+            const provincia = state.regionsById[RegionIDs.PROVINCIA];
+            const marchRegions = _.clone(provincia.adjacent);
+            marchRegions.push(provincia);
+            const marchRegionIds = _.map(marchRegions, 'id');
+
+            marchResults = _.filter(marchResults, marchResult => _.indexOf(marchRegionIds,
+                                                                           marchResult.region.id) >= 0);
+
+            _.each(marchResults, marchResult => {
+                marchResult.destinations = _.filter(marchResult.destinations,
+                                                    destination => _.indexOf(marchRegionIds,
+                                                                             destination.id) >= 0);
+
+            });
+        }
+
         const firstControlMarch = this.getControlMarch(state, modifiers, marchResults);
         let secondControlMarch = null;
 
         let effective = false;
+        let marchedFromRegions = [];
+        let marchedToRegions = [];
+
+        state.turnHistory.getCurrentTurn().startCommand(CommandIDs.MARCH);
         if (firstControlMarch) {
-            state.turnHistory.getCurrentTurn().startCommand(CommandIDs.MARCH);
-            let marchedFromRegions = [firstControlMarch.region.id];
-            let marchedToRegions = [firstControlMarch.destination.id];
-
+            marchedFromRegions.push(firstControlMarch.region.id);
+            marchedToRegions.push(firstControlMarch.destination.id);
             this.doMarch(state, firstControlMarch, modifiers);
-
-            const secondControlMarch = this.getControlMarch(state, modifiers, _.reject(marchResults, march => march.region.id === firstControlMarch.region.id));
-            if (secondControlMarch) {
+            const secondControlMarch = this.getControlMarch(state, modifiers, _.reject(marchResults,
+                                                                                       march => march.region.id === firstControlMarch.region.id));
+            if (!modifiers.limited && !modifiers.context.monsCevenna && secondControlMarch) {
                 marchedFromRegions.push(secondControlMarch.region.id);
                 marchedToRegions.push(secondControlMarch.destination.id);
                 this.doMarch(state, secondControlMarch, modifiers);
             }
-
-            this.doLeaderMarch(state, modifiers, marchedFromRegions, marchedToRegions);
-            state.turnHistory.getCurrentTurn().commitCommand();
             effective = true;
         }
 
+        if ((!firstControlMarch || !modifiers.context.monsCevenna) && !modifiers.limited && this.doLeaderMarch(state,
+                                                                                                               modifiers,
+                                                                                                               marchedFromRegions,
+                                                                                                               marchedToRegions)) {
+            effective = true;
+        }
+
+
         if (!effective) {
+            state.turnHistory.getCurrentTurn().rollbackCommand();
             return;
         }
+
+        state.turnHistory.getCurrentTurn().commitCommand();
 
         const wasBritanniaMarch = (firstControlMarch && (firstControlMarch.region.id === RegionIDs.BRITANNIA || firstControlMarch.destination.id === RegionIDs.BRITANNIA)) ||
                                   (secondControlMarch && (secondControlMarch.region.id === RegionIDs.BRITANNIA || secondControlMarch.destination.id === RegionIDs.BRITANNIA))
 
-        const usedSpecialAbility = modifiers.canDoSpecial() && !wasBritanniaMarch && (BelgaeEnlist.enlist(state, modifiers));
+        const usedSpecialAbility = modifiers.canDoSpecial() && !wasBritanniaMarch && (BelgaeEnlist.enlist(state,
+                                                                                                          modifiers));
         return usedSpecialAbility ? FactionActions.COMMAND_AND_SPECIAL : FactionActions.COMMAND;
     }
 
@@ -157,7 +202,7 @@ class BelgaeMarch {
         console.log('*** Belgae march to control region ' + marchData.destination.name + ' ***');
         const belgae = state.belgae;
         if (!modifiers.free) {
-            RemoveResources.execute(state, { factionId: FactionIDs.BELGAE, count: marchData.cost});
+            RemoveResources.execute(state, {factionId: FactionIDs.BELGAE, count: marchData.cost});
         }
 
         const warbands = _.filter(marchData.region.getMobilePiecesForFaction(FactionIDs.BELGAE), {type: "warband"});
@@ -170,6 +215,15 @@ class BelgaeMarch {
 
         const numPiecesToMove = marchData.destination.group === RegionGroups.BELGICA ? marchData.numMoveableWarbands : marchData.numNeededForControl;
         const piecesToMove = _.take(warbands, numPiecesToMove);
+        if (modifiers.context.monsCevenna) {
+            modifiers.context.marchDestination = marchData.destination.id;
+        }
+
+        HidePieces.execute(state, {
+            factionId: belgae.id,
+            regionId: marchData.region.id
+        });
+
         MovePieces.execute(
             state, {
                 sourceRegionId: marchData.region.id,
@@ -229,11 +283,33 @@ class BelgaeMarch {
 
     static doLeaderMarch(state, modifiers, marchedFromRegions, marchedToRegions) {
         const belgae = state.belgae;
-        const marchResults = _.filter(
+        let marchResults = _.filter(
             March.test(state, {factionId: FactionIDs.BELGAE}),
-            marchResult => (belgae.resources() >= marchResult.cost) || modifiers.free || _.indexOf(marchedFromRegions, marchResult.region.id) >= 0);
+            marchResult => ((belgae.resources() >= marchResult.cost) ||
+                            modifiers.free ||
+                            _.indexOf(marchedFromRegions, marchResult.region.id) >= 0) &&
+                           _.indexOf(modifiers.allowedRegions, marchResult.region.id) >= 0);
 
-        const leaderMarch = _.find(marchResults, result => _.find(result.region.piecesByFaction()[FactionIDs.BELGAE], {type: 'leader'}));
+        if (modifiers.context.monsCevenna) {
+            const provincia = state.regionsById[RegionIDs.PROVINCIA];
+            const marchRegions = _.clone(provincia.adjacent);
+            marchRegions.push(provincia);
+            const marchRegionIds = _.map(marchRegions, 'id');
+
+            marchResults = _.filter(marchResults, marchResult => _.indexOf(marchRegionIds,
+                                                                           marchResult.region.id) >= 0);
+
+            _.each(marchResults, marchResult => {
+                marchResult.destinations = _.filter(marchResult.destinations,
+                                                    destination => _.indexOf(marchRegionIds,
+                                                                             destination.id) >= 0);
+
+            });
+        }
+
+
+        const leaderMarch = _.find(marchResults, result => _.find(result.region.piecesByFaction()[FactionIDs.BELGAE],
+                                                                  {type: 'leader'}));
         if (!leaderMarch) {
             return;
         }
@@ -270,14 +346,27 @@ class BelgaeMarch {
             }).compact().sortBy('priority').groupBy('priority').map(_.shuffle).flatten().first();
 
         if (destinationData) {
-            console.log('*** Belgae leader marches to join pieces in region ' + destinationData.destination.name + ' ***');
+            console.log(
+                '*** Belgae leader marches to join pieces in region ' + destinationData.destination.name + ' ***');
+            if (modifiers.context.monsCevenna) {
+                modifiers.context.marchDestination = destinationData.destination.id;
+            }
+
+            HidePieces.execute(state, {
+                factionId: belgae.id,
+                regionId: leaderMarch.region.id
+            });
+
             MovePieces.execute(
                 state, {
                     sourceRegionId: leaderMarch.region.id,
                     destRegionId: destinationData.destination.id,
                     pieces: [leader]
                 });
+            return true;
         }
+
+
     }
 
 

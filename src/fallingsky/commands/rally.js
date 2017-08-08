@@ -18,7 +18,8 @@ class Rally extends Command {
     static doTest(state, args) {
         const faction = args.faction;
         const regions = args.regions;
-        return this.generateResultsForRegions(state, faction, regions || state.regions);
+        const acco = args.acco;
+        return this.generateResultsForRegions(state, faction, regions || state.regions, acco);
     }
 
     static doExecute(state, args) {
@@ -87,13 +88,14 @@ class Rally extends Command {
         }
     }
 
-    static generateResultsForRegions(state, faction, regions) {
+    static generateResultsForRegions(state, faction, regions, acco) {
         return _(regions).map(
             function (region) {
 
                 const factionPieces = region.getPiecesForFaction(faction.id);
 
                 const isRomans = faction.id === FactionIDs.ROMANS;
+                const isAedui = faction.id === FactionIDs.AEDUI;
                 const isArverni = faction.id === FactionIDs.ARVERNI;
                 const isBelgae = faction.id === FactionIDs.BELGAE;
                 const isGermanic = faction.id === FactionIDs.GERMANIC_TRIBES;
@@ -105,12 +107,25 @@ class Rally extends Command {
                 const hasVercingetorix = hasLeader && isArverni;
                 const hasCaesar = hasLeader && isRomans;
 
-                if (region.devastated() && !hasVercingetorix) {
+                if (!region.inPlay() || (region.devastated() && !hasVercingetorix && !acco)) {
                     return;
                 }
 
                 const isBelgaeOutsideOfBelgica = (isBelgae && region.group !== RegionGroups.BELGICA);
-                const cost = isRomans ? 2 : isGermanic ? 0 : (region.devastated() || isBelgaeOutsideOfBelgica ? 2 : 1);
+                let cost = isRomans ? 2 : isGermanic ? 0 : (region.devastated() || isBelgaeOutsideOfBelgica ? 2 : 1);
+
+                if (isAedui && state.hasShadedCapability(CapabilityIDs.CONVICTOLITAVIS)) {
+                    cost *= 2;
+                }
+
+                if (isBelgae && state.hasShadedCapability(CapabilityIDs.COMMIUS)) {
+                    cost = 0;
+                }
+
+                const belgaeControlFromCommius = state.hasShadedCapability(
+                        CapabilityIDs.COMMIUS) && region.getPiecesForFaction(FactionIDs.BELGAE).length > 0;
+                const romanControlFromCommius = state.hasUnshadedCapability(
+                        CapabilityIDs.COMMIUS) && region.group === RegionGroups.BELGICA;
 
                 let allyAdded = false;
                 let citadelAdded = false;
@@ -122,13 +137,19 @@ class Rally extends Command {
                 }
 
                 const hasSubduedTribe = region.subduedTribesForFaction(faction.id).length > 0;
-                if (hasSubduedTribe && faction.availableAlliedTribes().length > 0 && (region.controllingFactionId() === faction.id || hasVercingetorix || hasCaesar)) {
+                if (hasSubduedTribe && faction.availableAlliedTribes().length > 0 && (region.controllingFactionId() === faction.id ||
+                                                                                      hasVercingetorix ||
+                                                                                      hasCaesar ||
+                                                                                      belgaeControlFromCommius ||
+                                                                                      romanControlFromCommius ||
+                                                                                      acco)) {
                     allyAdded = true;
                 }
 
                 const countedPieces = _.countBy(factionPieces, 'type');
                 numWarbandsOrAuxiliaAdded += (countedPieces.alliedtribe || 0) + (countedPieces.citadel || 0);
-                if (isArverni) {
+
+                if (isArverni && !state.hasUnshadedCapability(CapabilityIDs.VERCINGETORIXS_ELITE)) {
                     if (countedPieces.leader) {
                         numWarbandsOrAuxiliaAdded += 1;
                     }
@@ -138,6 +159,10 @@ class Rally extends Command {
                 }
 
                 if (isRomans) {
+                    if (state.hasUnshadedCapability(CapabilityIDs.COMMIUS)) {
+                        numWarbandsOrAuxiliaAdded += 1;
+                    }
+
                     if (countedPieces.leader) {
                         numWarbandsOrAuxiliaAdded += 1;
                     }

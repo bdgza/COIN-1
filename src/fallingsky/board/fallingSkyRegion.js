@@ -12,10 +12,10 @@ class FallingSkyRegion extends Region {
 
         // Immutable
         this.group = definition.group;
-        this.tribes = _.map(
+        this.tribes = ko.observableArray(_.map(
             definition.tribes, function (tribeId) {
                 return tribesById[tribeId];
-            });
+            }));
         this.controlValue = definition.controlValue;
         this.adjacent = definition.adjacent;
         this.supplyLines = [];
@@ -77,6 +77,12 @@ class FallingSkyRegion extends Region {
         this.controlValue += 1;
     }
 
+    removeColony() {
+        const colony = this.tribes.pop();
+        colony.regionId = null;
+        this.controlValue -= 1;
+    }
+
     addPiece(piece) {
         this.addPieces([piece]);
     }
@@ -100,8 +106,8 @@ class FallingSkyRegion extends Region {
         this.pieces.removeAll(pieces);
     }
 
-    hasValidSupplyLine(requestingFactionId, agreeingFactionIds, invalidRegions=[]) {
-        if (_.indexOf(invalidRegions, this.id) >= 0 || !this.isValidForSupplyLine(requestingFactionId, agreeingFactionIds)) {
+    hasValidSupplyLine(requestingFactionId, agreeingFactionIds, invalidRegions=[], validRegions = []) {
+        if (_.indexOf(invalidRegions, this.id) >= 0 || (!this.isValidForSupplyLine(requestingFactionId, agreeingFactionIds) && _.indexOf(validRegions, this.id) < 0)) {
             return false;
         }
 
@@ -112,7 +118,7 @@ class FallingSkyRegion extends Region {
         return _.find(this.supplyLines, (supplyLine) => {
                 return _.every(
                     supplyLine, (region) => {
-                        return _.indexOf(invalidRegions, this.id) < 0 && region.isValidForSupplyLine(requestingFactionId, agreeingFactionIds);
+                        return _.indexOf(invalidRegions, this.id) < 0 && (region.isValidForSupplyLine(requestingFactionId, agreeingFactionIds) || _.indexOf(validRegions, this.id) >= 0);
                     });
             });
     }
@@ -154,17 +160,17 @@ class FallingSkyRegion extends Region {
     }
 
     subduedTribesForFaction(factionId) {
-        return _(this.tribes).filter(function(tribe) {
+        return _(this.tribes()).filter(function(tribe) {
             return tribe.isSubdued() && (!tribe.factionRestriction || tribe.factionRestriction === factionId);
         }).value();
     }
 
     getSubduedTribes() {
-        return _(this.tribes).filter(tribe => tribe.isSubdued()).value();
+        return _(this.tribes()).filter(tribe => tribe.isSubdued()).value();
     }
 
     getAlliedCityForFaction(factionId) {
-        return _(this.tribes).find(function(tribe) {
+        return _(this.tribes()).find(function(tribe) {
             return tribe.isAllied() && tribe.isCity && tribe.alliedFactionId() === factionId;
         });
     }
@@ -186,7 +192,7 @@ class FallingSkyRegion extends Region {
     }
 
     getRevealedPiecesForFaction(factionId) {
-        return _.filter(this.piecesByFaction()[factionId], piece => (piece.type === 'warband' || piece.type === 'auxilia') && piece.revealed());
+        return _.filter(this.piecesByFaction()[factionId], piece => (piece.type === 'warband' || piece.type === 'auxilia') && piece.revealed() && !piece.scouted());
     }
 
     getScoutedPiecesForFaction(factionId) {
@@ -217,6 +223,10 @@ class FallingSkyRegion extends Region {
         return _.find(this.piecesByFaction()[factionId], { type : 'citadel' }) || null;
     }
 
+    getAlliesAndCitadelForFaction(factionId) {
+        return _.filter(this.piecesByFaction()[factionId], piece=> piece.type === 'alliedtribe' || piece.type === 'citadel');
+    }
+
     getHiddenWarbandsOrAuxiliaForFaction(factionId) {
         return _.filter(this.piecesByFaction()[factionId], piece => (piece.type === 'warband' || piece.type === 'auxilia') && !piece.revealed());
     }
@@ -231,7 +241,7 @@ class FallingSkyRegion extends Region {
         console.log('Controlling Faction: ' + (this.controllingFactionId() || 'No Control'));
         console.log('Tribes: ');
         _.each(
-            this.tribes, function (tribe) {
+            this.tribes(), function (tribe) {
                 console.log('    ' + tribe.toString());
             });
         _.each(

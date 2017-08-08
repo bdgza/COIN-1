@@ -1,4 +1,4 @@
-import Capability from '../../../../common/capability';
+
 import {CapabilityIDs, CapabilityStates} from '../../../config/capabilities';
 import AddCapability from '../../../actions/addCapability';
 

@@ -1,6 +1,7 @@
 import _ from '../../../lib/lodash';
 import Command from '../command';
 import FactionIDs from '../../config/factionIds';
+import {CapabilityIDs} from 'fallingsky/config/capabilities';
 import TradeResults from './tradeResults';
 
 class Trade extends Command {
@@ -17,7 +18,7 @@ class Trade extends Command {
                 const isAeduiControlled = region.controllingFactionId() === FactionIDs.AEDUI;
                 if (isAeduiControlled) {
                     totalAedui += _.filter(
-                        region.tribes, function (tribe) {
+                        region.tribes(), function (tribe) {
                             return tribe.isSubdued();
                         }).length;
 
@@ -25,6 +26,10 @@ class Trade extends Command {
                             region.piecesByFaction()[FactionIDs.ROMANS], function (piece) {
                                 return piece.type === 'alliedtribe';
                             }).length) * 2;
+                }
+
+                if(state.hasUnshadedCapability(CapabilityIDs.RIVER_COMMERCE)) {
+                    totalAedui += (counted.alliedtribe || 0) + (counted.citadel || 0);
                 }
 
                 return new TradeResults({

@@ -13,7 +13,6 @@ class BattleResults {
         this.defendingPieces = definition.defendingPieces;
 
         this.canAmbush = definition.canAmbush;
-        this.canEnlistGermans = definition.canEnlistGermans;
         this.defenderCanRetreat = definition.defenderCanRetreat;
         this.defenderCanGuaranteeSafeRetreat = definition.defenderCanGuaranteeSafeRetreat;
         this.defenderCanCounterattack = definition.defenderCanCounterattack;
@@ -26,11 +25,14 @@ class BattleResults {
         this.worstCaseAttackerLosses = definition.worstCaseAttackerLosses;
         this.worstCaseCounterattackResults = definition.worstCaseCounterattackResults;
 
+        this.helpingFactionId = definition.helpingFactionId;
         this.willAmbush = definition.willAmbush;
         this.willEnlistGermans = definition.willEnlistGermans;
         this.willBesiege = definition.willBesiege;
         this.willApplyGermanicHorse = definition.willApplyGermanicHorse;
         this.willApplyBalearicSlingers = definition.willApplyBalearicSlingers;
+        this.aduataca = definition.aduataca;
+        this.legiones = definition.legiones;
 
         this.paid = definition.paid;
         this.handledBalearicSlingers = definition.handledBalearicSlingers;

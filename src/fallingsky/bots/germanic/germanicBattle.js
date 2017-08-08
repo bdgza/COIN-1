@@ -1,13 +1,21 @@
 import _ from '../../../lib/lodash';
 import FactionIDs from '../../config/factionIds';
+import SpecialAbilityIDs from 'fallingsky/config/specialAbilityIds';
+import CommandIDs from '../../config/commandIds';
 import Battle from '../../commands/battle';
 
 class GermanicBattle {
 
     static battle(state, modifiers) {
         console.log('*** Germanic Battle ***');
-        let effective = false;
         const effectiveBattles = this.findEffectiveBattles(state);
+        if(effectiveBattles.length === 0) {
+            return false;
+        }
+        const turn = state.turnHistory.getCurrentTurn();
+        turn.startCommand(CommandIDs.BATTLE);
+        turn.startSpecialAbility(SpecialAbilityIDs.AMBUSH);
+        turn.commitSpecialAbility();
         _.each(effectiveBattles, (battle) => {
                 Battle.execute(
                     state, {
@@ -16,9 +24,9 @@ class GermanicBattle {
                         defendingFaction: battle.defendingFaction,
                         ambush: true
                     });
-                effective = true;
             });
-        return effective;
+        turn.commitCommand();
+        return true;
     }
 
     static getEnemyFactionOrder(state) {
@@ -41,7 +49,7 @@ class GermanicBattle {
     }
 
     static isEffectiveBattle(battleResult) {
-        return battleResult.canAmbush && battleResult.bestDefenderLosses > 0;
+        return battleResult.canAmbush && battleResult.mostDefenderLosses() > 0;
     }
 }
 

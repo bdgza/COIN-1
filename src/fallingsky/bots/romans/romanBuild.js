@@ -2,6 +2,7 @@ import _ from '../../../lib/lodash';
 import FactionIDs from '../../config/factionIds';
 import CommandIDs from '../../config/commandIds';
 import SpecialAbilityIDs from 'fallingsky/config/specialAbilityIds';
+import {CapabilityIDs} from 'fallingsky/config/capabilities';
 import EnemyFactionPriority from 'fallingsky/bots/romans/enemyFactionPriority';
 import Build from '../../commands/romans/build';
 import RemoveResources from 'fallingsky/actions/removeResources';
@@ -48,19 +49,31 @@ class RomanBuild {
     static getExecutableBuilds(state, modifiers) {
         const seizeRegions = modifiers.context.seizeRegions || [];
         const possibleBuilds = _.shuffle(Build.test(state));
-        const fortPlacements = this.getFortPlacements(state, possibleBuilds);
-        const allyRemovals = this.getAllyRemovals(state, possibleBuilds, fortPlacements, seizeRegions);
-        const allyPlacements = this.getAllyPlacements(state, possibleBuilds, fortPlacements, seizeRegions);
+
+        const agreementsNeeded = _(possibleBuilds).map('agreementsNeeded').flatten().uniq().value();
+        const agreements = state.playersByFaction[FactionIDs.ROMANS].getSupplyLineAgreements(state, modifiers, agreementsNeeded);
+
+        const allowedBuilds = _.filter(possibleBuilds, build=> {
+            const supplied = build.region.hasValidSupplyLine(FactionIDs.ROMANS,agreements);
+            return build.hasAlly || supplied;
+        });
+
+
+        const fortPlacements = this.getFortPlacements(state, allowedBuilds);
+        const allyRemovals = this.getAllyRemovals(state, allowedBuilds, fortPlacements, seizeRegions);
+        const allyPlacements = this.getAllyPlacements(state, allowedBuilds, fortPlacements, seizeRegions);
 
         const allBuilds = _.concat(fortPlacements, allyRemovals, allyPlacements);
 
-        return modifiers.free ? allBuilds : _.reduce(allBuilds, (accumulator, build) => {
+        const paidBuilds = modifiers.free ? allBuilds : _.reduce(allBuilds, (accumulator, build) => {
             if (accumulator.resourcesRemaining >= 6) {
                 accumulator.resourcesRemaining -= 2;
                 accumulator.builds.push(build);
             }
             return accumulator
         }, {resourcesRemaining: state.romans.resources(), builds: []}).builds;
+
+        return state.hasShadedCapability(CapabilityIDs.TITUS_LABIENUS) ? _.take(paidBuilds, 1) : paidBuilds
     }
 
     static getFortPlacements(state, possibleBuilds) {
@@ -99,8 +112,9 @@ class RomanBuild {
                 return;
             }
 
-            const tribe = _(build.region.tribes).reject(tribe=>tribe.alliedFactionId() === FactionIDs.ROMANS).sortBy(
+            const tribe = _(build.region.tribes()).reject(tribe=>tribe.alliedFactionId() === FactionIDs.ROMANS).sortBy(
                 tribe => _.findIndex(enemyFactionPriority, tribe.alliedFactionId())).first();
+
 
 
 

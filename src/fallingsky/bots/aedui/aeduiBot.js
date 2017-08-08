@@ -34,14 +34,15 @@ class AeduiBot extends Bot {
     takeTurn(state) {
         let action = null;
         const turn = state.turnHistory.currentTurn;
+        const modifiers = turn.getContext();
 
-        if (!turn.getCheckpoint(Checkpoints.PASS_CHECK) && this.shouldPassForNextCard(state)) {
+        if (!turn.getCheckpoint(Checkpoints.PASS_CHECK) && !modifiers.outOfSequence && this.shouldPassForNextCard(
+                state)) {
             action = FactionActions.PASS;
         }
         turn.markCheckpoint(Checkpoints.PASS_CHECK);
-
-        if (!turn.getCheckpoint(Checkpoints.EVENT_CHECK) && !action && turn.getContext().isCommandAllowed(
-                CommandIDs.EVENT) && this.canPlayEvent(state) && AeduiEvent.handleEvent(state)) {
+        if (!turn.getCheckpoint(Checkpoints.EVENT_CHECK) && !action && !modifiers.noEvent && this.canPlayEvent(
+                state) && AeduiEvent.handleEvent(state)) {
             action = FactionActions.EVENT;
         }
         turn.markCheckpoint(Checkpoints.EVENT_CHECK);
@@ -50,11 +51,12 @@ class AeduiBot extends Bot {
             action = this.executeCommand(state, turn);
         }
 
-        if (action === FactionActions.PASS) {
-            Pass.execute(state, {factionId: FactionIDs.AEDUI});
+        if (!modifiers.outOfSequence) {
+            if (action === FactionActions.PASS) {
+                Pass.execute(state, {factionId: FactionIDs.AEDUI});
+            }
+            state.sequenceOfPlay.recordFactionAction(FactionIDs.AEDUI, action);
         }
-
-        state.sequenceOfPlay.recordFactionAction(FactionIDs.AEDUI, action);
         return action;
     }
 
@@ -92,7 +94,9 @@ class AeduiBot extends Bot {
         }
         turn.markCheckpoint(Checkpoints.SECOND_RAID_CHECK);
 
-        commandAction = commandAction || FactionActions.PASS;
+        if (!modifiers.outOfSequence) {
+            commandAction = commandAction || FactionActions.PASS;
+        }
 
         return commandAction
     }
@@ -110,7 +114,7 @@ class AeduiBot extends Bot {
             }
         }).compact().each((relocation) => {
             const adjacentLocations = _(relocation.region.adjacent).reject(function (adjacentRegion) {
-                return !adjacentRegion.controllingFactionId();
+                return !adjacentRegion.controllingFactionId() || adjacentRegion.controllingFactionId() === FactionIDs.GERMANIC_TRIBES;
             }).sortBy(function (destinations, factionId) {
                 if (factionId === FactionIDs.AEDUI) {
                     return 'a';
