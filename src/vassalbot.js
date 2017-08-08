@@ -20,18 +20,28 @@ import * as fs from 'fs';
 
 module.exports = {
   start: function(gameStateFile) {
-    console.log('Loading gamestate from: ' + gameStateFile);
+    console.log('vassalbot.start(' + gameStateFile + ')');
 
     fs.readFile(gameStateFile, function (err, data) {
+      console.log('vassalbot.readFile()');
+
       if (err) {
-        throw err; 
+        console.log('M*ERROR READING GAMESTATE ' + err.message);
+        throw err;
       }
 
       var json = JSON.parse(data.toString());
       const game = new FallingSkyVassalGameState(json);
-      //game.logState();
+      
+      console.log('Action: ' + json.action);
 
-      game.playTurn();
+      if (json.action == 'action:Play-Next')
+        game.playTurn();
+      else if (json.action == 'action:Game-State') {
+        console.log('@ECHO ON');
+        game.logState();
+        console.log('@ECHO OFF');
+      }
     });
   }
 };

@@ -462,8 +462,12 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
   }
 
   playTurn() {
+    console.log('M=');
+    
     if (this.currentCard().type === 'winter') {
+      console.log('M*Conduct Winter Round');
       Winter.executeWinter(this);
+
       //this.lastTurn(this.state().turnHistory.lastTurn());
       //this.state().startYear();
       //this.drawCard();
@@ -471,9 +475,17 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     }
 
     const nextFaction = this.sequenceOfPlay.nextFaction(this.currentCard());
-    console.log('* Next Faction: ' + nextFaction);
+    console.log('M*Next Faction to Play: ' + nextFaction);
 
     const player = this.playersByFaction[nextFaction];
+    console.log('*** PLAYER');
+    console.log(player);
+    if (player.isNonPlayer !== true) {
+      console.log('M*The next faction to play is a human player.');
+      console.log('M=');
+      return;
+    }
+
     this.turnHistory.startTurn(nextFaction);
     try {
       player.takeTurn(this, this.turnHistory.currentTurn);
@@ -489,10 +501,41 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
         console.log('M' + prefix + types[element.type] + ': ' + element.instruction);
       }, this);
     } catch(err) {
-      if(err.name === 'PlayerInteractionNeededError') {
+      if (err.name === 'PlayerInteractionNeededError') {
         console.log('* PlayerInteractionRequested');
         console.log(err);
-        Events.emit('PlayerInteractionRequested', err.interaction);
+        //Events.emit('PlayerInteractionRequested', err.interaction);
+
+        //game.resumeTurn(interaction);
+
+        const interaction = err.interaction;
+        if (interaction.type == 'SupplyLineAgreement') {
+          console.log('Q*' + JSON.stringify({
+            'type': 'yesno',
+            'q': 'SupplyLineAgreement',
+            'requestingFactionId': interaction.requestingFactionId,
+            'respondingFactionId': interaction.respondingFactionId,
+            'category': 'Supply Line',
+            'question': interaction.requestingFactionId + ' is requesting permission for Supply Line from ' + interaction.respondingFactionId
+          }));
+        } else {
+          console.log('M*ERROR: Unknown PlayerInteraction type, not implemented');
+        }
+
+        // TODO: need to save gamestate
+        // TODO: need a way to resume gamestate and input response
+
+        /*
+ - <CONSOLE> - PlayerInteractionNeededError {
+ - <CONSOLE> -   name: 'PlayerInteractionNeededError',
+ - <CONSOLE> -   message: 'Supply line requested by Aedui',
+ - <CONSOLE> -   interaction: 
+ - <CONSOLE> -    SupplyLineAgreement {
+ - <CONSOLE> -      type: 'SupplyLineAgreement',
+ - <CONSOLE> -      requestingFactionId: 'Aedui',
+ - <CONSOLE> -      respondingFactionId: 'Belgae',
+ - <CONSOLE> -      status: 'requested' } }
+        */
       }
       else {
         throw err;
