@@ -35,7 +35,7 @@ import AddCapability from '../actions/addCapability';
 
 import DisperseTribe from '../actions/disperseTribe';
 import UndisperseTribe from '../actions/undisperseTribe';
-import SenateApprovalStates from '../config/senateApprovalStates';
+import { SenateApprovalStates, SenateApprovalStateNames } from '../config/senateApprovalStates';
 import ArverniDevastate from '../bots/arverni/arverniDevastate';
 import Devastate from '../commands/arverni/devastate';
 
