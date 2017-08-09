@@ -458,7 +458,14 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
   }
 
   toJSON() {
-    return "{}";
+    return Object.assign(super.toJSON(), {
+      action: this.action,
+      numberDiscards: this.numberDiscards,
+      numberDeck: this.numberDeck,
+      numberDiscardedWinter: this.numberDiscardedWinter,
+      totalCards: this.totalCards,
+      totalWinters: this.totalWinters
+    });
   }
 
   playTurn() {
@@ -518,6 +525,10 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             'category': 'Supply Line',
             'question': interaction.requestingFactionId + ' is requesting permission for Supply Line from ' + interaction.respondingFactionId
           }));
+        } else if (interaction.type == 'RetreatDeclaration') {
+          // TODO: to implement interaction
+          console.log('M*RetreatDeclaration TODO');
+          console.log(interaction);
         } else {
           console.log('M*ERROR: Unknown PlayerInteraction type, not implemented');
         }

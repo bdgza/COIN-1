@@ -62,6 +62,14 @@ class FallingSkyRegion extends Region {
             });
     }
 
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            inPlay: this.inPlay(),
+            pieces: this.pieces(),
+            devastated: this.devastated()
+        });
+    }
+
     isControlledByFaction(factionId) {
         return this.controllingFactionId() === factionId;
     }

@@ -10,6 +10,12 @@ class AlliedTribe extends FactionPiece {
     identifier() {
         return super.identifier() + '|' + (this.tribeId || '');
     }
+
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            tribeId: this.tribeId || ''
+        });
+    }
 }
 
 export default AlliedTribe;

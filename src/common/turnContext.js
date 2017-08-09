@@ -2,9 +2,11 @@ import _ from 'lib/lodash';
 import CommandIDs from 'fallingsky/config/commandIds';
 import RegionIDs from 'fallingsky/config/regionIds';
 
+import uuidv4 from 'uuid';
+
 class TurnContext {
     constructor(definition = {}) {
-        this.id = definition.id || '' + Math.random(); // need to make uuid
+        this.id = definition.id || uuidv4();
         this.limited = definition.limited;
         this.allowLimitedSpecial = definition.allowLimitedSpecial;
         this.noSpecial = definition.noSpecial;

@@ -72,6 +72,27 @@ class FallingSkyGameState extends GameState {
         this.victor = ko.observable();
     }
 
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            factions: this.factions,
+            regions: this.regions,
+            playersByFaction: this.playersByFaction,
+            sequenceOfPlay: this.sequenceOfPlay,
+            turnHistory: this.turnHistory,
+            actionHistory: this.actionHistory,
+            capabilities: this.capabilities(),
+            deck: this.deck(),
+            discard: this.discard(),
+            currentCard: this.currentCard(),
+            upcomingCard: this.upcomingCard,
+            frost: this.frost(),
+            year: this.year(),
+            yearsRemaining: this.yearsRemaining,
+            gameEnded: this.gameEnded(),
+            victor: this.victor()
+        });
+    }
+
     setDeck(deck) {
         this.deck(deck);
     }

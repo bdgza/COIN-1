@@ -1,6 +1,6 @@
 import _ from '../lib/lodash';
 import Turn from './turn';
-import TurnContext from 'common/turnContext'
+import TurnContext from 'common/turnContext';
 
 
 class TurnHistory {
@@ -8,6 +8,13 @@ class TurnHistory {
         this.state = state;
         this.turns = [];
         this.currentTurn = null;
+    }
+
+    toJSON() {
+        return {
+            turns: this.turns,
+            currentTurn: this.currentTurn
+        };
     }
 
     startTurn(factionId) {

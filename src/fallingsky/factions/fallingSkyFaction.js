@@ -44,6 +44,16 @@ class FallingSkyFaction extends Faction {
             });
     }
 
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            resources: this.resources(),
+            availableLeader: this.availableLeader(),
+            availableWarbands: this.availableWarbands(),
+            availableAlliedTribes: this.availableAlliedTribes(),
+            availableCitadels: this.availableCitadels()
+        });
+    }
+
     victoryMargin(state) {
         return -100;
     }

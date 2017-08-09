@@ -15,6 +15,13 @@ class Warband extends FactionPiece {
         });
     }
 
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            revealed: this.revealed(),
+            scouted: this.scouted()
+        });
+    }
+
     identifier() {
         return super.identifier() + '|' + this.status();
     }
