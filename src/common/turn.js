@@ -17,6 +17,23 @@ class Turn extends ActionGroup {
         this.currentContext = null;
     }
 
+    toJSON() {
+        let currentContext = this.currentContext;
+        if (currentContext === null || currentContext === undefined)
+            currentContext = false;
+        else
+            currentContext = currentContext.id;
+        return Object.assign(super.toJSON(), {
+            number: this.number,
+            commandAction: this.commandAction,
+            actionGroups: this.actionGroups,
+            inProgress: this.inProgress,
+            checkpoints: this.checkpoints,
+            contexts: this.contexts,
+            currentContext: currentContext
+        });
+    }
+
     undo() {
         this.state.actionHistory.undoRange(this.actionStartIndex, this.actionEndIndex);
     }

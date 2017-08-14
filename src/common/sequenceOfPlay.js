@@ -52,6 +52,22 @@ class SequenceOfPlay {
         });
     }
 
+    toJSON() {
+        return {
+            history: this.history(),
+            eligibleFactions: this.eligibleFactions(),
+            ineligibleFactions: this.ineligibleFactions(),
+            passedFactions: this.passedFactions(),
+            forcedEligibleFactionIds: this.forcedEligibleFactionIds(),
+            forcedIneligibleFactionIds: this.forcedIneligibleFactionIds(),
+            currentSequenceForCard: this.currentSequenceForCard(),
+            firstFaction: this.firstFaction(),
+            secondFaction: this.secondFaction(),
+            firstActionChosen: this.firstActionChosen(),
+            secondActionChosen: this.secondActionChosen()
+        };
+    }
+
     updateEligibility() {
 
         _.each(this.passedFactions(), (factionId) => {

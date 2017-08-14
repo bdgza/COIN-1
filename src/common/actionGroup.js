@@ -7,6 +7,17 @@ class ActionGroup {
         this.actionEndIndex = definition.actionEndIndex;
         this.interactions = definition.interactions || [];
     }
+
+    toJSON() {
+        return {
+            type: this.type,
+            factionId: this.factionId,
+            id: this.id,
+            actionStartIndex: this.actionStartIndex,
+            actionEndIndex: this.actionEndIndex,
+            interactions: this.interactions
+        };
+    }
 }
 
 export default ActionGroup;

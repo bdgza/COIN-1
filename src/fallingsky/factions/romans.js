@@ -73,6 +73,23 @@ class Romans extends FallingSkyFaction {
             });
     }
 
+    toJSON() {
+        return Object.assign(super.toJSON(), {
+            availableAuxilia: this.availableAuxilia() || 0,
+            availableForts: this.availableForts() || 0,
+            availableLegions: this.availableLegions() || 0,
+            availableDispersalTokens: this.availableDispersalTokens() || 0,
+            senateApprovalState: this.senateApprovalState(),
+            senateFirm: this.senateFirm(),
+            uproarLegions: this.uproarLegions(),
+            intrigueLegions: this.intrigueLegions(),
+            adulationLegions: this.adulationLegions(),
+            fallenLegions: this.fallenLegions(),
+            lostEagle: this.lostEagle(),
+            lostEagleYear: this.lostEagleYear() || -1
+        });
+    }
+
     victoryMargin(state) {
         return this.victoryScore(state) - 15;
     }

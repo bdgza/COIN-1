@@ -7,6 +7,14 @@ class SequenceForCard {
         this.ineligible = definition.ineligible || [];
     }
 
+    toJSON() {
+        return {
+            actions: this.actions(),
+            eligible: this.eligible,
+            ineligible: this.ineligible
+        }
+    }
+
     addAction(factionId, actionId) {
         this.actions.push( { factionId, actionId });
     }

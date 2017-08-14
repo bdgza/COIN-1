@@ -17,8 +17,8 @@ class FallingSkyFaction extends Faction {
         this.passResources = definition.passResources || 1;
 
         this.availableLeader = ko.observable();
-        if(this.hasLeader) {
-            this.availableLeader (new Leader({factionId: definition.id, name: definition.leaderName}));
+        if (this.hasLeader) {
+            this.availableLeader(new Leader({factionId: definition.id, name: definition.leaderName}));
         }
 
         this.availableWarbands = ko.observableArray(
@@ -45,9 +45,13 @@ class FallingSkyFaction extends Faction {
     }
 
     toJSON() {
+        let availableLeader = this.availableLeader();
+        if (availableLeader === undefined || availableLeader === null)
+            availableLeader = false;
+        
         return Object.assign(super.toJSON(), {
             resources: this.resources(),
-            availableLeader: this.availableLeader(),
+            availableLeader: availableLeader,
             availableWarbands: this.availableWarbands(),
             availableAlliedTribes: this.availableAlliedTribes(),
             availableCitadels: this.availableCitadels()

@@ -16,6 +16,9 @@ import RevealPieces from 'fallingsky/actions/revealPieces';
 import AeduiBattle from 'fallingsky/bots/aedui/aeduiBattle';
 import TurnContext from 'common/turnContext';
 
+import Game from 'fallingsky/game';
+import TheGreatRevolt from 'fallingsky/scenarios/TheGreatRevolt';
+
 import * as fs from 'fs';
 import * as tempy from 'tempy';
 
@@ -24,7 +27,7 @@ JSON.stringifyOnce = function(obj, replacer, indent){
   var printedObjectKeys = [];
 
   function printOnceReplacer(key, value) {
-    if (printedObjects.length > 2000) { // browsers will not print more than 20K, I don't see the point to allow 2K.. algorithm will not be fast anyway if we have too many objects
+    if (printedObjects.length > 20000) { // browsers will not print more than 20K, I don't see the point to allow 2K.. algorithm will not be fast anyway if we have too many objects
       return 'object too long';
     }
     var printedObjIndex = false;
@@ -77,6 +80,17 @@ module.exports = {
       }
 
       var json = JSON.parse(data.toString());
+
+      /*const game2 = new Game({scenario: TheGreatRevolt});
+      game2.start();
+      var newdatafile2 = tempy.file({extension: 'json'});
+      var newdata2 = JSON.stringifyOnce(game2.state(), function (key, val) {
+        if (isFunction(val)) return undefined;
+        return val;
+      }, 1);
+      fs.writeFileSync(newdatafile2, newdata2);
+      console.log('M*File game2 written to ', newdatafile2);*/
+
       const game = new FallingSkyVassalGameState(json);
       
       console.log('Action: ' + json.action);

@@ -29,6 +29,23 @@ class TurnContext {
         }).value();
     }
 
+    toJSON() {
+        return {
+            id: this.id,
+            limited: this.limited,
+            allowLimitedSpecial: this.allowLimitedSpecial,
+            noSpecial: this.noSpecial,
+            noEvent: this.noEvent,
+            outOfSequence: this.outOfSequence,
+            free: this.free,
+            winter: this.winter,
+            context: this.context,
+            currentFactionId: this.currentFactionId,
+            allowedRegions: this.allowedRegions,
+            allowedCommands: this.allowedCommands
+        };
+    }
+
     canDoSpecial() {
         return !this.noSpecial && (!this.limited || this.allowLimitedSpecial);
     }

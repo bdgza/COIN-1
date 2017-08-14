@@ -1,8 +1,15 @@
 import _ from '../lib/lodash';
+
 class ActionHistory {
     constructor(state) {
         this.state = state;
         this.actions = [];
+    }
+
+    toJSON() {
+        return {
+            actions: this.actions
+        };
     }
 
     addAction(action) {
