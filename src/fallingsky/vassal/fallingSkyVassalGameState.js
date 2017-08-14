@@ -414,7 +414,12 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
         this.numberDiscards = parseInt(pieceName.substring(startIndex, endIndex));
 
         for (let d = 0; d < this.numberDiscards; d++)
-          this.discard().push(EventCardDefinitions[0]);
+          this.discard().push(new Card({
+              id: 1,
+              type: CardTypes.EVENT,
+              initiativeOrder: [FactionIDs.ROMANS, FactionIDs.ARVERNI, FactionIDs.AEDUI, FactionIDs.BELGAE],
+              title: 'Cicero'
+          }));
       }
 
       // number of cards on the draw deck
@@ -425,7 +430,12 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
         this.numberDeck = parseInt(pieceName.substring(startIndex, endIndex));
 
         for (let d = 0; d < this.numberDeck; d++)
-          this.deck().push(EventCardDefinitions[0]);
+          this.deck().push(new Card({
+              id: 1,
+              type: CardTypes.EVENT,
+              initiativeOrder: [FactionIDs.ROMANS, FactionIDs.ARVERNI, FactionIDs.AEDUI, FactionIDs.BELGAE],
+              title: 'Cicero'
+          }));
       }
 
       // winter on discard
