@@ -62,11 +62,6 @@ JSON.stringifyOnce = function(obj, replacer, indent){
   return JSON.stringify(obj, printOnceReplacer, indent);
 };
 
-function isFunction(functionToCheck) {
-  var getType = {};
-  return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
-}
-
 module.exports = {
   start: function(gameStateFile) {
     console.log('vassalbot.start(' + gameStateFile + ')');
@@ -103,20 +98,17 @@ module.exports = {
         console.log('@ECHO OFF');
       }
       else if (json.action == 'action:JSON') {
-        game.playTurn();
-
-        var newdata = JSON.stringifyOnce(game, function (key, val) {
-          if (isFunction(val)) return undefined;
-          //var removed = ["factionsById", "tribes", "tribesById", "regionsById", "vassal", "aedui", "arverni", "belgae", "germanic", "romans"];
-          //if (removed.includes(key)) return undefined;
-
-          //console.log('M*Replacer', key, val);
-          return val;
-        }, 1);
+        var newdata = game.serializeGameState(game);
 
         var newdatafile = tempy.file({extension: 'json'});
         fs.writeFileSync(newdatafile, newdata);
         console.log('M*File written to ', newdatafile);
+
+        // reload
+
+        //const loaddata = fs.readFileSync(newdatafile);
+
+        //const loadgame = new FallingSkyVassalGameState(loaddata);
       }
     });
   }

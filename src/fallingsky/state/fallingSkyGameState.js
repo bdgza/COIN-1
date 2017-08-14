@@ -115,10 +115,6 @@ class FallingSkyGameState extends GameState {
 
     }
 
-    serializeGameState(state) {
-
-    }
-
     loadGameState(state) {
 
     }

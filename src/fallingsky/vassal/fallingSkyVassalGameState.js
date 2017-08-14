@@ -477,6 +477,16 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
       totalWinters: this.totalWinters
     });
   }
+  
+  cloneGameState(state) {
+    super.cloneGameState(state);
+    throw 'NotImplementedException';
+  }
+
+  loadGameState(state) {
+    super.loadGameState(state);
+    throw 'NotImplementedException';
+  }
 
   playTurn() {
     console.log('M=');
