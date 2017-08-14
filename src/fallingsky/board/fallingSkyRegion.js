@@ -69,6 +69,14 @@ class FallingSkyRegion extends Region {
             devastated: this.devastated()
         });
     }
+    
+    loadGameState(json) {
+        super.loadGameState(json);
+        
+        this.inPlay(json.inPlay);
+        //this.pieces(json.pieces); // TODO: need to restore on each instance in the array
+        this.devastated(json.devastated);
+    }
 
     isControlledByFaction(factionId) {
         return this.controllingFactionId() === factionId;

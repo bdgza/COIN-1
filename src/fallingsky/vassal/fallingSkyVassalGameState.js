@@ -42,9 +42,19 @@ import Devastate from '../commands/arverni/devastate';
 import FallingSkyVassal from './fallingSkyVassal';
 
 class FallingSkyVassalGameState extends FallingSkyGameState {
-  constructor(json) {
+  constructor() {
     super();
 
+    this.vassal = new FallingSkyVassal();
+    this.action = '';
+    this.numberDiscards = 0;
+    this.numberDeck = 0;
+    this.numberDiscardedWinter = 0;
+    this.totalCards = 0;
+    this.totalWinters = 0;
+  }
+
+  loadVassalGameData(json) {
     // utility variables
 
     let startIndex;
@@ -53,8 +63,6 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     let zone;
     let p;
     let z;
-
-    this.vassal = new FallingSkyVassal();
 
     // the current action (state of the state machine)
 
@@ -478,14 +486,30 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     });
   }
   
-  cloneGameState(state) {
-    super.cloneGameState(state);
-    throw 'NotImplementedException';
+  // USAGE: let gamestate = new FallingSkyVassalGameState().loadGameState(JSON.parse(jsonstring));
+  loadGameState(json) {
+      super.loadGameState(json);
+      
+      this.action = json.action;
+      this.numberDiscards = json.numberDiscards;
+      this.numberDeck = json.numberDeck;
+      this.numberDiscardedWinter = json.numberDiscardedWinter;
+      this.totalCards = json.totalCards;
+      this.totalWinters = json.totalWinters;
+  }
+  
+  // USAGE: let clonestate = gamestate.cloneGameState();
+  cloneGameState(clonestate = null) {
+    if (clonestate === null)
+      clonestate = new FallingSkyVassalGameState();
+    clonestate = super.cloneGameState(clonestate);
+    // TODO: clone _this_ into clonestate
+    return clonestate;
   }
 
-  loadGameState(state) {
-    super.loadGameState(state);
-    throw 'NotImplementedException';
+  logState() {
+    super.logState();
+    console.log('VASSAL:', this.action);
   }
 
   playTurn() {

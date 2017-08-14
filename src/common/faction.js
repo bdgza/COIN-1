@@ -13,6 +13,12 @@ class Faction {
             passResources: this.passResources
         };
     }
+
+    loadGameState(json) {
+        this.id = json.id;
+        this.name = json.name;
+        this.passResources = json.passResources;
+    }
 }
 
 export default Faction;

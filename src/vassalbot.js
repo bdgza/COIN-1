@@ -86,7 +86,8 @@ module.exports = {
       fs.writeFileSync(newdatafile2, newdata2);
       console.log('M*File game2 written to ', newdatafile2);*/
 
-      const game = new FallingSkyVassalGameState(json);
+      const game = new FallingSkyVassalGameState();
+      game.loadVassalGameData(json);
       
       console.log('Action: ' + json.action);
 
@@ -106,9 +107,20 @@ module.exports = {
 
         // reload
 
-        //const loaddata = fs.readFileSync(newdatafile);
+        const loaddata = fs.readFileSync(newdatafile);
+        let loadgame = new FallingSkyVassalGameState();
 
-        //const loadgame = new FallingSkyVassalGameState(loaddata);
+        //console.log('M*BEFORE LOAD:');
+        console.log('@ECHO ON');
+        //loadgame.logState();
+        console.log('@ECHO OFF');
+
+        loadgame.loadGameState(JSON.parse(loaddata));
+
+        console.log('M*AFTER LOAD:');
+        console.log('@ECHO ON');
+        loadgame.logState();
+        console.log('@ECHO OFF');
       }
     });
   }

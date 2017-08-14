@@ -15,6 +15,17 @@ class GameState {
             return val;
           }, 1);
     }
+    
+    cloneGameState(clonestate = null) {
+      if (clonestate === null)
+        clonestate = new GameState();
+      // nothing here to clone
+      return clonestate;
+    }
+
+    loadGameState(json) {
+        // nothing to load for GameState
+    }
 }
 
 export default GameState;

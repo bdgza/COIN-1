@@ -92,6 +92,39 @@ class FallingSkyGameState extends GameState {
             victor: this.victor()
         });
     }
+    
+    // USAGE: let gamestate = new FallingSkyGameState().loadGameState(JSON.parse(jsonstring));
+    loadGameState(json) {
+        const thisstate = this;
+
+        super.loadGameState(json);
+        
+        // TODO: load state from JSON data
+
+        console.log('@ECHO ON');
+        json.factions.forEach(function(value) {
+            thisstate.factions.forEach(function(faction) {
+                if (faction.id == value.id)
+                    faction.loadGameState(value);
+            });
+        });
+        json.regions.forEach(function(value) {
+            thisstate.regions.forEach(function(region) {
+                if (region.id == value.id)
+                    region.loadGameState(value);
+            });
+        });
+        console.log('@ECHO OFF');
+    }
+    
+    // USAGE: let clonestate = gamestate.cloneGameState();
+    cloneGameState(clonestate = null) {
+      if (clonestate === null)
+        clonestate = new FallingSkyGameState();
+      clonestate = super.cloneGameState(clonestate);
+      // TODO: clone _this_ into clonestate; perhaps use serialize and deserialize to perform the clone?
+      return clonestate;
+    }
 
     setDeck(deck) {
         this.deck(deck);
@@ -109,14 +142,6 @@ class FallingSkyGameState extends GameState {
     undoYear() {
         this.yearsRemaining(this.yearsRemaining() + 1);
         this.year(this.year-1);
-    }
-
-    cloneGameState(state) {
-
-    }
-
-    loadGameState(state) {
-
     }
 
     addCapability(capability) {

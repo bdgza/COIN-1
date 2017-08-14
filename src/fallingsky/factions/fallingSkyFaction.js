@@ -48,7 +48,7 @@ class FallingSkyFaction extends Faction {
         let availableLeader = this.availableLeader();
         if (availableLeader === undefined || availableLeader === null)
             availableLeader = false;
-        
+
         return Object.assign(super.toJSON(), {
             resources: this.resources(),
             availableLeader: availableLeader,
@@ -56,6 +56,16 @@ class FallingSkyFaction extends Faction {
             availableAlliedTribes: this.availableAlliedTribes(),
             availableCitadels: this.availableCitadels()
         });
+    }
+
+    loadGameState(json) {
+        super.loadGameState(json);
+        
+        this.resources(json.resources);
+        // this.availableLeader // TODO: availableLeader object? check with available leader in toJSON()
+        this.availableWarbands(json.availableWarbands);
+        this.availableAlliedTribes(json.availableAlliedTribes);
+        this.availableCitadels(json.availableCitadels);
     }
 
     victoryMargin(state) {
