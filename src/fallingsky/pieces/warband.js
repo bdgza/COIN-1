@@ -8,8 +8,13 @@ class Warband extends FactionPiece {
 
         super(definition);
 
+        // mutable:
+
         this.revealed = ko.observable();
         this.scouted = ko.observable();
+
+        // immutable:
+        
         this.status = ko.pureComputed(() => {
             return this.scouted() ? 'scouted' : this.revealed() ? 'revealed' : 'hidden';
         });
@@ -20,6 +25,13 @@ class Warband extends FactionPiece {
             revealed: this.revealed(),
             scouted: this.scouted()
         });
+    }
+    
+    loadGameState(json) {
+        super.loadGameState(json);
+
+        this.revealed(json.revealed);
+        this.scouted(json.scouted);
     }
 
     identifier() {

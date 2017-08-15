@@ -4,6 +4,7 @@ import Region from '../../common/region';
 import Logging from '../util/logging';
 import FactionIDs from '../config/factionIds';
 import RegionIDs from 'fallingsky/config/regionIds';
+import FactionPieceFactory from '../../common/factionPieceFactory';
 
 class FallingSkyRegion extends Region {
     constructor(definition, tribesById) {
@@ -71,11 +72,17 @@ class FallingSkyRegion extends Region {
     }
     
     loadGameState(json) {
+        const self = this;
+
         super.loadGameState(json);
         
-        this.inPlay(json.inPlay);
-        //this.pieces(json.pieces); // TODO: need to restore on each instance in the array
-        this.devastated(json.devastated);
+        self.inPlay(json.inPlay);
+        json.pieces.forEach(function(value) {
+            const piece = FactionPieceFactory.create(value.type, value);
+            piece.loadGameState(value);
+            self.pieces.push(piece);
+        });
+        self.devastated(json.devastated);
     }
 
     isControlledByFaction(factionId) {

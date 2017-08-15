@@ -19,6 +19,13 @@ class FactionPiece {
             canRoll: this.canRoll
         };
     }
+
+    loadGameState(json) {
+        this.factionid = json.factionId;
+        this.type = json.type;
+        this.isMobile = json.isMobile || false;
+        this.canRoll = json.canRoll || false;
+    }
 }
 
 export default FactionPiece;

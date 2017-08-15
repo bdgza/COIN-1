@@ -16,6 +16,12 @@ class AlliedTribe extends FactionPiece {
             tribeId: this.tribeId || ''
         });
     }
+    
+    loadGameState(json) {
+        super.loadGameState(json);
+
+        this.tribeId = json.tribeId;
+    }
 }
 
 export default AlliedTribe;

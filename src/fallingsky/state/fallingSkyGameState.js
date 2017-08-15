@@ -14,10 +14,13 @@ import RomanBot from '../bots/romans/romanBot';
 import BelgaeBot from '../bots/belgae/belgaeBot';
 import GermanicBot from '../bots/germanic/germanicBot';
 import {CapabilityStates, CapabilityTitles} from '../config/capabilities';
+import FallingSkyPieces from '../pieces/fallingSkyPieces';
 
 class FallingSkyGameState extends GameState {
     constructor() {
         super();
+
+        FallingSkyPieces.registerWithFactory();
 
         this.factions = Factions.generateFactions();
         this.factionsById = _.keyBy(this.factions, 'id');
@@ -26,7 +29,6 @@ class FallingSkyGameState extends GameState {
         this.belgae = this.factionsById[FactionIDs.BELGAE];
         this.germanic = this.factionsById[FactionIDs.GERMANIC_TRIBES];
         this.romans = this.factionsById[FactionIDs.ROMANS];
-
 
         this.tribes = Tribes.generateTribes();
         this.tribesById = _.keyBy(this.tribes, 'id');
@@ -95,7 +97,7 @@ class FallingSkyGameState extends GameState {
     
     // USAGE: let gamestate = new FallingSkyGameState().loadGameState(JSON.parse(jsonstring));
     loadGameState(json) {
-        const thisstate = this;
+        const self = this;
 
         super.loadGameState(json);
         
@@ -103,13 +105,13 @@ class FallingSkyGameState extends GameState {
 
         console.log('@ECHO ON');
         json.factions.forEach(function(value) {
-            thisstate.factions.forEach(function(faction) {
+            self.factions.forEach(function(faction) {
                 if (faction.id == value.id)
                     faction.loadGameState(value);
             });
         });
         json.regions.forEach(function(value) {
-            thisstate.regions.forEach(function(region) {
+            self.regions.forEach(function(region) {
                 if (region.id == value.id)
                     region.loadGameState(value);
             });

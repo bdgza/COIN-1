@@ -27,6 +27,13 @@ class Leader extends FactionPiece {
         }
         return value;
     }
+    
+    loadGameState(json) {
+        super.loadGameState(json);
+
+        this.name = json.name;
+        this.isSuccessor(json.isSuccessor);
+    }
 }
 
 export default Leader;
