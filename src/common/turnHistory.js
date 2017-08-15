@@ -17,6 +17,18 @@ class TurnHistory {
         };
     }
 
+    loadGameData(json) {
+        const self = this;
+
+        json.turns.forEach((value) => {
+            self.turns.push(new Turn(self.state, value));
+        });
+        if (json.currentTurn === null)
+            self.currentTurn = null;
+        else
+            self.currentTurn = new TurnContext(json.currentTurn);
+    }
+
     startTurn(factionId) {
         this.currentTurn = new Turn(this.state, {
             number: this.nextTurnNumber(),

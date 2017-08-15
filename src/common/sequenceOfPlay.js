@@ -68,6 +68,24 @@ class SequenceOfPlay {
         };
     }
 
+    loadGameData(json) {
+        const self = this;
+
+        json.history.forEach((value) => {
+            self.history.push(new SequenceForCard(value));
+        });
+        self.eligibleFactions(json.eligibleFactions);
+        self.ineligibleFactions(json.ineligibleFactions);
+        self.passedFactions(json.passedFactions);
+        self.forcedEligibleFactionIds(json.forcedEligibleFactionIds);
+        self.forcedIneligibleFactionIds(json.forcedIneligibleFactionIds);
+        self.currentSequenceForCard(json.currentSequenceForCard);
+        self.firstFaction(json.firstFaction);
+        self.secondFaction(json.secondFaction);
+        self.firstActionChosen(json.firstActionChosen);
+        self.secondActionChosen(json.secondActionChosen);
+    }
+
     updateEligibility() {
 
         _.each(this.passedFactions(), (factionId) => {

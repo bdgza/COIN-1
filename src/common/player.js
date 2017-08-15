@@ -10,6 +10,11 @@ class Player {
             factionId: this.factionId
         };
     }
+
+    loadGameState(json) {
+        this.isNonPlayer = json.isNonPlayer || false;
+        this.factionId = json.factionId;
+    }
 }
 
 export default Player;

@@ -62,6 +62,17 @@ JSON.stringifyOnce = function(obj, replacer, indent){
   return JSON.stringify(obj, printOnceReplacer, indent);
 };
 
+function findFirstDiffPos(a, b)
+{
+  var longerLength = Math.max(a.length, b.length);
+  for (var i = 0; i < longerLength; i++)
+  {
+     if (a[i] !== b[i]) return i;
+  }
+
+  return -1;
+}
+
 module.exports = {
   start: function(gameStateFile) {
     console.log('vassalbot.start(' + gameStateFile + ')');
@@ -99,6 +110,8 @@ module.exports = {
         console.log('@ECHO OFF');
       }
       else if (json.action == 'action:JSON') {
+        game.playTurn();
+
         var newdata = game.serializeGameState(game);
 
         var newdatafile = tempy.file({extension: 'json'});
@@ -108,19 +121,27 @@ module.exports = {
         // reload
 
         const loaddata = fs.readFileSync(newdatafile);
+        const loaddatastr = loaddata.toString();
         let loadgame = new FallingSkyVassalGameState();
 
         //console.log('M*BEFORE LOAD:');
-        console.log('@ECHO ON');
+        // console.log('@ECHO ON');
         //loadgame.logState();
-        console.log('@ECHO OFF');
+        // console.log('@ECHO OFF');
 
-        loadgame.loadGameState(JSON.parse(loaddata));
+        loadgame.loadGameState(JSON.parse(loaddatastr));
 
-        console.log('M*AFTER LOAD:');
-        console.log('@ECHO ON');
-        loadgame.logState();
-        console.log('@ECHO OFF');
+        // console.log('M*AFTER LOAD:');
+        // console.log('@ECHO ON');
+        // loadgame.logState();
+        // console.log('@ECHO OFF');
+
+        let diffIndex = findFirstDiffPos(newdata, loaddatastr);
+        if (diffIndex > -1) {
+          console.log('M*DIFF', diffIndex);
+          console.log('M*STRING 1:', newdata.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
+          console.log('M*STRING 2:', loaddatastr.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
+        }
       }
     });
   }

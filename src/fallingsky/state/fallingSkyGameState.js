@@ -67,11 +67,12 @@ class FallingSkyGameState extends GameState {
 
         this.year = ko.observable(0);
         this.yearsRemaining = ko.observable();
+        this.gameEnded = ko.observable();
+        this.victor = ko.observable();
+
         this.isLastYear = ko.pureComputed(() => {
             return this.yearsRemaining() === 0;
         });
-        this.gameEnded = ko.observable();
-        this.victor = ko.observable();
     }
 
     toJSON() {
@@ -100,23 +101,47 @@ class FallingSkyGameState extends GameState {
         const self = this;
 
         super.loadGameState(json);
-        
-        // TODO: load state from JSON data
 
-        console.log('@ECHO ON');
         json.factions.forEach(function(value) {
             self.factions.forEach(function(faction) {
                 if (faction.id == value.id)
                     faction.loadGameState(value);
             });
         });
+
         json.regions.forEach(function(value) {
             self.regions.forEach(function(region) {
                 if (region.id == value.id)
                     region.loadGameState(value);
             });
         });
-        console.log('@ECHO OFF');
+
+        Object.entries(json.playersByFaction).forEach(([key, value]) => {
+            Object.entries(self.playersByFaction).forEach(([playerid, player]) => {
+                if (playerid == key)
+                    player.loadGameState(value);
+            });
+        });
+
+        self.sequenceOfPlay.loadGameData(json.sequenceOfPlay);
+        self.turnHistory.loadGameData(json.turnHistory);
+        self.actionHistory.loadGameData(json.actionHistory);
+        self.capabilities(json.capabilities);
+
+        json.deck.forEach((value) => {
+            self.deck.push(new Card(value));
+        });
+        json.discard.forEach((value) => {
+            self.discard.push(new Card(value));
+        });
+        self.currentCard(new Card(json.currentCard));
+        self.upcomingCard(new Card(json.upcomingCard));
+        self.frost(json.frost);
+
+        self.year(json.year);
+        self.yearsRemaining(json.yearsRemaining);
+        self.gameEnded(json.gameEnded);
+        self.victor(json.victor);
     }
     
     // USAGE: let clonestate = gamestate.cloneGameState();

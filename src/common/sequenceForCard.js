@@ -12,11 +12,21 @@ class SequenceForCard {
             actions: this.actions(),
             eligible: this.eligible,
             ineligible: this.ineligible
-        }
+        };
+    }
+
+    loadGameData(json) {
+        const self = this;
+
+        json.actions.forEach((value) => {
+            self.actions.push(value);
+        });
+        self.eligible = json.eligible;
+        self.ineligible = json.ineligible;
     }
 
     addAction(factionId, actionId) {
-        this.actions.push( { factionId, actionId });
+        this.actions.push({ factionId, actionId });
     }
 
     numActionsTaken() {

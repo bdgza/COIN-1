@@ -11,6 +11,14 @@ class ActionHistory {
             actions: this.actions
         };
     }
+    
+    loadGameData(json) {
+        const self = this;
+
+        json.actions.forEach((value) => {
+            self.actions.push(value);
+        });
+    }
 
     addAction(action) {
         this.actions.push(action);
