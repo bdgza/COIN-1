@@ -99,7 +99,13 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             eligible.push(FactionIDs.AEDUI);
           else if (zone.name === 'Pass')
             passed.push(FactionIDs.AEDUI);
-          else
+          else if (zone.name.startsWith('1st Faction')) {
+            this.sequenceOfPlay.firstFaction(FactionIDs.AEDUI);
+            this.sequenceOfPlay.firstActionChosen(zone.name.substring(12));
+          } else if (zone.name.startsWith('2nd Faction')) {
+            this.sequenceOfPlay.secondFaction(FactionIDs.AEDUI);
+            this.sequenceOfPlay.secondActionChosen(zone.name.substring(12));
+          } else
             ineligible.push(FactionIDs.AEDUI);
         }
         // Arverni Resources
@@ -111,7 +117,13 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             eligible.push(FactionIDs.ARVERNI);
           else if (zone.name === 'Pass')
             passed.push(FactionIDs.ARVERNI);
-          else
+          else if (zone.name.startsWith('1st Faction')) {
+            this.sequenceOfPlay.firstFaction(FactionIDs.ARVERNI);
+            this.sequenceOfPlay.firstActionChosen(zone.name.substring(12));
+          } else if (zone.name.startsWith('2nd Faction')) {
+            this.sequenceOfPlay.secondFaction(FactionIDs.ARVERNI);
+            this.sequenceOfPlay.secondActionChosen(zone.name.substring(12));
+          } else
             ineligible.push(FactionIDs.ARVERNI);
         }
         // Belgic Resources
@@ -123,7 +135,13 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             eligible.push(FactionIDs.BELGAE);
           else if (zone.name === 'Pass')
             passed.push(FactionIDs.BELGAE);
-          else
+          else if (zone.name.startsWith('1st Faction')) {
+            this.sequenceOfPlay.firstFaction(FactionIDs.BELGAE);
+            this.sequenceOfPlay.firstActionChosen(zone.name.substring(12));
+          } else if (zone.name.startsWith('2nd Faction')) {
+            this.sequenceOfPlay.secondFaction(FactionIDs.BELGAE);
+            this.sequenceOfPlay.secondActionChosen(zone.name.substring(12));
+          } else
             ineligible.push(FactionIDs.BELGAE);
         }
         // Roman Resources
@@ -135,7 +153,13 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
             eligible.push(FactionIDs.ROMANS);
           else if (zone.name === 'Pass')
             passed.push(FactionIDs.ROMANS);
-          else
+          else if (zone.name.startsWith('1st Faction')) {
+            this.sequenceOfPlay.firstFaction(FactionIDs.ROMANS);
+            this.sequenceOfPlay.firstActionChosen(zone.name.substring(12));
+          } else if (zone.name.startsWith('2nd Faction')) {
+            this.sequenceOfPlay.secondFaction(FactionIDs.ROMANS);
+            this.sequenceOfPlay.secondActionChosen(zone.name.substring(12));
+          } else
             ineligible.push(FactionIDs.ROMANS);
         }
       }
@@ -488,14 +512,14 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
   
   // USAGE: let gamestate = new FallingSkyVassalGameState().loadGameState(JSON.parse(jsonstring));
   loadGameState(json) {
-      super.loadGameState(json);
-      
-      this.action = json.action;
-      this.numberDiscards = json.numberDiscards;
-      this.numberDeck = json.numberDeck;
-      this.numberDiscardedWinter = json.numberDiscardedWinter;
-      this.totalCards = json.totalCards;
-      this.totalWinters = json.totalWinters;
+    super.loadGameState(json);
+    
+    this.action = json.action;
+    this.numberDiscards = json.numberDiscards;
+    this.numberDeck = json.numberDeck;
+    this.numberDiscardedWinter = json.numberDiscardedWinter;
+    this.totalCards = json.totalCards;
+    this.totalWinters = json.totalWinters;
   }
   
   // USAGE: let clonestate = gamestate.cloneGameState();
@@ -509,7 +533,7 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
 
   logState() {
     super.logState();
-    console.log('VASSAL:', this.action);
+    //console.log('VASSAL:', this.action);
   }
 
   playTurn() {
@@ -526,10 +550,18 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     }
 
     const nextFaction = this.sequenceOfPlay.nextFaction(this.currentCard());
+    const player = this.playersByFaction[nextFaction];
+
+    console.log('*** PLAYER');
+
+    if (player === undefined) {
+      console.log('M*There is no eligible faction to play.');
+      console.log('M=');
+      return;
+    }
+
     console.log('M*Next Faction to Play: ' + nextFaction);
 
-    const player = this.playersByFaction[nextFaction];
-    console.log('*** PLAYER');
     console.log(player);
     if (player.isNonPlayer !== true) {
       console.log('M*The next faction to play is a human player.');
