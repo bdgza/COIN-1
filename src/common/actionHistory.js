@@ -12,7 +12,7 @@ class ActionHistory {
         };
     }
     
-    loadGameData(json) {
+    loadGameState(json) {
         const self = this;
 
         json.actions.forEach((value) => {

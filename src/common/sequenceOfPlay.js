@@ -68,7 +68,7 @@ class SequenceOfPlay {
         };
     }
 
-    loadGameData(json) {
+    loadGameState(json) {
         const self = this;
 
         json.history.forEach((value) => {

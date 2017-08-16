@@ -15,7 +15,7 @@ class SequenceForCard {
         };
     }
 
-    loadGameData(json) {
+    loadGameState(json) {
         const self = this;
 
         json.actions.forEach((value) => {

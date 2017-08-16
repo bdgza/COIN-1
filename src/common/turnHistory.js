@@ -17,7 +17,7 @@ class TurnHistory {
         };
     }
 
-    loadGameData(json) {
+    loadGameState(json) {
         const self = this;
 
         json.turns.forEach((value) => {
