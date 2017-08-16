@@ -597,6 +597,20 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
       }
       console.log('M' + prefix + types[element.type] + ': ' + element.instruction);
     }, this);
+    console.log('M=');
+
+    let factions = _.join(this.sequenceOfPlay.eligibleFactions());
+    if (factions.length > 0) console.log('M Eligible Factions: ' + factions);
+    factions = _.join(this.sequenceOfPlay.passedFactions());
+    if (factions.length > 0) console.log('M Passed Factions: ' + factions);
+    factions = _.join(this.sequenceOfPlay.ineligibleFactions());
+    if (factions.length > 0) console.log('M Ineligible Factions: ' + factions);
+    if (this.sequenceOfPlay.firstFaction()) {
+      console.log('M First Faction:  ' + this.sequenceOfPlay.firstFaction() + ' (' + this.sequenceOfPlay.firstActionChosen() + ')');
+    }
+    if (this.sequenceOfPlay.secondFaction()) {
+      console.log('M Second Faction:  ' + this.sequenceOfPlay.secondFaction() + ' (' + this.sequenceOfPlay.secondActionChosen() + ')');
+    }
   }
 
   playTurn() {

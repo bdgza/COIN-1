@@ -173,10 +173,10 @@ module.exports = {
 
         switch (response.reply) {
           case 'agreed':
-            console.log('M --> ' + interaction.respondingFactionId + ' agreed');
+            console.log('M RESPONSE --> ' + interaction.respondingFactionId + ' agreed');
             break;
           case 'refused':
-            console.log('M --> ' + interaction.respondingFactionId + ' refused');
+            console.log('M RESPONSE --> ' + interaction.respondingFactionId + ' refused');
             break;
         }
 
