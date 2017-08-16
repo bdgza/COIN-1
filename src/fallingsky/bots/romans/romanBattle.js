@@ -40,11 +40,11 @@ class RomanBattle {
 
         _.each(battles, (battle) => {
             if (!battle.complete) {
+                Battle.execute(state, {battleResults: battle});
                 if (!battle.paid && !modifiers.free) {
                     RemoveResources.execute(state, {factionId: FactionIDs.ROMANS, count: battle.cost});
                     battle.paid = true;
                 }
-                Battle.execute(state, {battleResults: battle});
             }
         });
 
