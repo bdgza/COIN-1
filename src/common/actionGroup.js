@@ -18,6 +18,15 @@ class ActionGroup {
             interactions: this.interactions
         };
     }
+
+    loadGameState(json) {
+        this.type = json.type;
+        this.factionId = json.factionId;
+        this.id = json.id;
+        this.actionStartIndex = json.actionStartIndex;
+        this.actionEndIndex = json.actionEndIndex;
+        this.interactions = json.interactions || [];
+    }
 }
 
 export default ActionGroup;

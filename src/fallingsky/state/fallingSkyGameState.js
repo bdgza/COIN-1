@@ -15,12 +15,15 @@ import BelgaeBot from '../bots/belgae/belgaeBot';
 import GermanicBot from '../bots/germanic/germanicBot';
 import {CapabilityStates, CapabilityTitles} from '../config/capabilities';
 import FallingSkyPieces from '../pieces/fallingSkyPieces';
+import Card from '../../common/card';
+import FallingSkyInteractions from '../interactions/fallingSkyInteractions';
 
 class FallingSkyGameState extends GameState {
     constructor() {
         super();
 
         FallingSkyPieces.registerWithFactory();
+        FallingSkyInteractions.registerWithFactory();
 
         this.factions = Factions.generateFactions();
         this.factionsById = _.keyBy(this.factions, 'id');
@@ -87,7 +90,7 @@ class FallingSkyGameState extends GameState {
             deck: this.deck(),
             discard: this.discard(),
             currentCard: this.currentCard(),
-            upcomingCard: this.upcomingCard,
+            upcomingCard: this.upcomingCard(),
             frost: this.frost(),
             year: this.year(),
             yearsRemaining: this.yearsRemaining,
@@ -123,9 +126,9 @@ class FallingSkyGameState extends GameState {
             });
         });
 
-        self.sequenceOfPlay.loadGameData(json.sequenceOfPlay);
-        self.turnHistory.loadGameData(json.turnHistory);
-        self.actionHistory.loadGameData(json.actionHistory);
+        self.sequenceOfPlay.loadGameState(json.sequenceOfPlay);
+        self.turnHistory.loadGameState(json.turnHistory);
+        self.actionHistory.loadGameState(json.actionHistory);
         self.capabilities(json.capabilities);
 
         json.deck.forEach((value) => {
@@ -134,8 +137,17 @@ class FallingSkyGameState extends GameState {
         json.discard.forEach((value) => {
             self.discard.push(new Card(value));
         });
-        self.currentCard(new Card(json.currentCard));
-        self.upcomingCard(new Card(json.upcomingCard));
+
+        if (!json.currentCard || json.currentCard === null)
+            self.currentCard(null);
+        else
+            self.currentCard(new Card(json.currentCard));
+
+        if (!json.upcomingCard || json.upcomingCard === null)
+            self.upcomingCard(null);
+        else
+            self.upcomingCard(new Card(json.upcomingCard));
+
         self.frost(json.frost);
 
         self.year(json.year);

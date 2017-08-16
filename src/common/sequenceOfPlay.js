@@ -79,7 +79,9 @@ class SequenceOfPlay {
         self.passedFactions(json.passedFactions);
         self.forcedEligibleFactionIds(json.forcedEligibleFactionIds);
         self.forcedIneligibleFactionIds(json.forcedIneligibleFactionIds);
-        self.currentSequenceForCard(json.currentSequenceForCard);
+        const currentSequenceForCard = new SequenceForCard(json.currentSequenceForCard);
+        currentSequenceForCard.loadGameState(json.currentSequenceForCard);
+        self.currentSequenceForCard(currentSequenceForCard);
         self.firstFaction(json.firstFaction);
         self.secondFaction(json.secondFaction);
         self.firstActionChosen(json.firstActionChosen);

@@ -40,6 +40,8 @@ import ArverniDevastate from '../bots/arverni/arverniDevastate';
 import Devastate from '../commands/arverni/devastate';
 
 import FallingSkyVassal from './fallingSkyVassal';
+import * as fs from 'fs';
+import * as tempy from 'tempy';
 
 class FallingSkyVassalGameState extends FallingSkyGameState {
   constructor() {
@@ -52,6 +54,8 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     this.numberDiscardedWinter = 0;
     this.totalCards = 0;
     this.totalWinters = 0;
+
+    this.lastTurn = ko.observable();
   }
 
   loadVassalGameData(json) {
@@ -495,8 +499,6 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     }
 
     this.setYearsRemaining(this.totalWinters - this.numberDiscardedWinter - 1);
-
-    this.lastTurn = ko.observable();
   }
 
   toJSON() {
@@ -536,6 +538,67 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     //console.log('VASSAL:', this.action);
   }
 
+  processPlayerInteractionNeeded(err) {
+    console.log('* PlayerInteractionRequested');
+    console.log(err);
+
+    // save game state
+
+    const savedgamestate = this.serializeGameState(this);
+    
+    const savefile = tempy.file({extension: 'json'});
+    fs.writeFileSync(savefile, savedgamestate);
+    console.log('M*DEBUG: Game state saved to ', savefile);
+
+    //Events.emit('PlayerInteractionRequested', err.interaction);
+    //game.resumeTurn(interaction);
+
+    const interaction = err.interaction;
+    if (interaction.type == 'SupplyLineAgreement') {
+      console.log('Q*' + JSON.stringify({
+        'type': 'agreerefuse',
+        'q': 'SupplyLineAgreement',
+        'requestingFactionId': interaction.requestingFactionId,
+        'respondingFactionId': interaction.respondingFactionId,
+        'category': 'Supply Line',
+        'question': interaction.requestingFactionId + ' is requesting permission for Supply Line from ' + interaction.respondingFactionId,
+        'interaction': JSON.stringify(interaction),
+        'datafile': savefile
+      }));
+    } else if (interaction.type == 'RetreatDeclaration') {
+      // TODO: to implement interaction
+      console.log(interaction);
+      console.log('Q*' + JSON.stringify({
+        'type': 'agreerefuse',
+        'q': 'RetreatDeclaration',
+        'requestingFactionId': interaction.requestingFactionId,
+        'respondingFactionId': interaction.respondingFactionId,
+        'category': 'Retreat Permission',
+        'question': interaction.requestingFactionId + ' is requesting permission to Retreat from ' + interaction.respondingFactionId,
+        'interaction': JSON.stringify(interaction),
+        'datafile': savefile
+      }));
+    } else {
+      console.log('M*ERROR: Unknown PlayerInteraction type, not implemented');
+    }
+
+    // TODO: need to save gamestate
+    // TODO: need a way to resume gamestate and input response
+  }
+
+  printLastTurnInstructions() {
+    const instructions = this.turnHistory.lastTurn().getInstructions(this);
+    instructions.forEach(function(element) {
+      const types = {'command': 'COMMAND', 'sa': 'SPECIAL ABILITY', 'event': 'EVENT', 'action': '--> DO'};
+      let prefix = ' ';
+      if (element.type != 'action') {
+        console.log('M=');
+        prefix = '*';
+      }
+      console.log('M' + prefix + types[element.type] + ': ' + element.instruction);
+    }, this);
+  }
+
   playTurn() {
     console.log('M=');
     
@@ -573,62 +636,36 @@ class FallingSkyVassalGameState extends FallingSkyGameState {
     try {
       player.takeTurn(this, this.turnHistory.currentTurn);
       this.lastTurn(this.turnHistory.lastTurn());
-      const instructions = this.turnHistory.lastTurn().getInstructions(this);
-      instructions.forEach(function(element) {
-        const types = {'command': 'COMMAND', 'sa': 'SPECIAL ABILITY', 'event': 'EVENT', 'action': '--> DO'};
-        let prefix = ' ';
-        if (element.type != 'action') {
-          console.log('M=');
-          prefix = '*';
-        }
-        console.log('M' + prefix + types[element.type] + ': ' + element.instruction);
-      }, this);
+      this.printLastTurnInstructions();
     } catch(err) {
       if (err.name === 'PlayerInteractionNeededError') {
-        console.log('* PlayerInteractionRequested');
-        console.log(err);
-        //Events.emit('PlayerInteractionRequested', err.interaction);
-
-        //game.resumeTurn(interaction);
-
-        const interaction = err.interaction;
-        if (interaction.type == 'SupplyLineAgreement') {
-          console.log('Q*' + JSON.stringify({
-            'type': 'yesno',
-            'q': 'SupplyLineAgreement',
-            'requestingFactionId': interaction.requestingFactionId,
-            'respondingFactionId': interaction.respondingFactionId,
-            'category': 'Supply Line',
-            'question': interaction.requestingFactionId + ' is requesting permission for Supply Line from ' + interaction.respondingFactionId
-          }));
-        } else if (interaction.type == 'RetreatDeclaration') {
-          // TODO: to implement interaction
-          console.log('M*RetreatDeclaration TODO');
-          console.log(interaction);
-        } else {
-          console.log('M*ERROR: Unknown PlayerInteraction type, not implemented');
-        }
-
-        // TODO: need to save gamestate
-        // TODO: need a way to resume gamestate and input response
-
-        /*
- - <CONSOLE> - PlayerInteractionNeededError {
- - <CONSOLE> -   name: 'PlayerInteractionNeededError',
- - <CONSOLE> -   message: 'Supply line requested by Aedui',
- - <CONSOLE> -   interaction: 
- - <CONSOLE> -    SupplyLineAgreement {
- - <CONSOLE> -      type: 'SupplyLineAgreement',
- - <CONSOLE> -      requestingFactionId: 'Aedui',
- - <CONSOLE> -      respondingFactionId: 'Belgae',
- - <CONSOLE> -      status: 'requested' } }
-        */
+        this.processPlayerInteractionNeeded(err);
       }
       else {
         throw err;
       }
     }
   }
+
+  resumeTurn(interaction) {
+    const nextFaction = this.sequenceOfPlay.nextFaction(this.currentCard());
+    const player = this.playersByFaction[nextFaction];
+    try {
+      this.turnHistory.getCurrentTurn().addInteraction(interaction);
+      player.resume(this);
+      this.lastTurn(this.turnHistory.lastTurn());
+      this.printLastTurnInstructions();
+    }
+    catch (err) {
+      if (err.name === 'PlayerInteractionNeededError') {
+          this.processPlayerInteractionNeeded(err);
+      }
+      else {
+          throw err;
+      }
+    }
+  }
+
 }
 
 export default FallingSkyVassalGameState;

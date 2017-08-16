@@ -46,6 +46,29 @@ class TurnContext {
         };
     }
 
+    loadGameState(json) {
+        const self = this;
+        
+        self.id = json.id;
+        self.limited = json.limited || false;
+        self.allowLimitedSpecial = json.allowLimitedSpecial || false;
+        self.noSpecial = json.noSpecial || false;
+        self.noEvent = json.noEvent || false;
+        self.outOfSequence = json.outOfSequence || false;
+        self.free = json.free || false;
+        self.winter = json.winter || false;
+        if (!json.context || json.context === null)
+            self.context = {};
+        else {
+            const context = new TurnContext(json.context);
+            context.loadGameState(json.context);
+            self.context = context;
+        }
+        self.currentFactionId = json.currentFactionId || null;
+        self.allowedRegions = json.allowedRegions;
+        self.allowedCommands = json.allowedCommands;
+    }
+
     canDoSpecial() {
         return !this.noSpecial && (!this.limited || this.allowLimitedSpecial);
     }

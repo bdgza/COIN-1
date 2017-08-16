@@ -82,7 +82,7 @@ class RomanBattle {
                 accumulator.resourcesRemaining -= battle.cost;
                 accumulator.battles.push(battle);
             }
-            return accumulator
+            return accumulator;
         }, {resourcesRemaining: romans.resources(), battles: []}).battles;
 
         if (battles.length > 0 && modifiers.limited) {

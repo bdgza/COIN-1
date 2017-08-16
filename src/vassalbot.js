@@ -18,6 +18,7 @@ import TurnContext from 'common/turnContext';
 
 import Game from 'fallingsky/game';
 import TheGreatRevolt from 'fallingsky/scenarios/TheGreatRevolt';
+import PlayerInteractionFactory from 'common/playerInteractionFactory';
 
 import * as fs from 'fs';
 import * as tempy from 'tempy';
@@ -73,77 +74,118 @@ function findFirstDiffPos(a, b)
   return -1;
 }
 
+function isEmpty(str) {
+  return (!str || 0 === str.length);
+}
+
+function loadedVassalData(err, data) {
+  console.log('vassalbot.readFile()');
+
+  if (err) {
+    console.log('M*ERROR READING GAMESTATE ' + err.message);
+    throw err;
+  }
+
+  var json = JSON.parse(data.toString());
+
+  const game = new FallingSkyVassalGameState();
+  game.loadVassalGameData(json);
+  
+  console.log('Action: ' + json.action);
+
+  if (json.action == 'action:Play-Next')
+    game.playTurn();
+  else if (json.action == 'action:Game-State') {
+    console.log('@ECHO ON');
+    game.logState();
+    console.log('@ECHO OFF');
+  }
+  else if (json.action == 'action:JSON') {
+    game.playTurn();
+
+    var newdata = game.serializeGameState(game);
+
+    var newdatafile = tempy.file({extension: 'json'});
+    fs.writeFileSync(newdatafile, newdata);
+    console.log('M*File written to ', newdatafile);
+
+    // reload
+
+    const loaddata = fs.readFileSync(newdatafile);
+    const loaddatastr = loaddata.toString();
+    let loadgame = new FallingSkyVassalGameState();
+
+    //console.log('M*BEFORE LOAD:');
+    // console.log('@ECHO ON');
+    //loadgame.logState();
+    // console.log('@ECHO OFF');
+
+    loadgame.loadGameState(JSON.parse(loaddatastr));
+
+    // console.log('M*AFTER LOAD:');
+    // console.log('@ECHO ON');
+    // loadgame.logState();
+    // console.log('@ECHO OFF');
+
+    let diffIndex = findFirstDiffPos(newdata, loaddatastr);
+    if (diffIndex > -1) {
+      console.log('M*DIFF', diffIndex);
+      console.log('M*STRING 1:', newdata.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
+      console.log('M*STRING 2:', loaddatastr.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
+    }
+  }
+}
+
 module.exports = {
-  start: function(gameStateFile) {
-    console.log('vassalbot.start(' + gameStateFile + ')');
+  start: function(gameStateFile, question) {
+    console.log('vassalbot.start(', gameStateFile, ', ', question, ')');
 
-    fs.readFile(gameStateFile, function (err, data) {
-      console.log('vassalbot.readFile()');
+    if (isEmpty(gameStateFile) && question) {
+      // resume from VASSAL
+      var response = JSON.parse(question);
+      console.log('vassalbot.datafile', response.datafile);
 
-      if (err) {
-        console.log('M*ERROR READING GAMESTATE ' + err.message);
-        throw err;
-      }
-
-      var json = JSON.parse(data.toString());
-
-      /*const game2 = new Game({scenario: TheGreatRevolt});
-      game2.start();
-      var newdatafile2 = tempy.file({extension: 'json'});
-      var newdata2 = JSON.stringifyOnce(game2.state(), function (key, val) {
-        if (isFunction(val)) return undefined;
-        return val;
-      }, 1);
-      fs.writeFileSync(newdatafile2, newdata2);
-      console.log('M*File game2 written to ', newdatafile2);*/
-
-      const game = new FallingSkyVassalGameState();
-      game.loadVassalGameData(json);
-      
-      console.log('Action: ' + json.action);
-
-      if (json.action == 'action:Play-Next')
-        game.playTurn();
-      else if (json.action == 'action:Game-State') {
-        console.log('@ECHO ON');
-        game.logState();
-        console.log('@ECHO OFF');
-      }
-      else if (json.action == 'action:JSON') {
-        game.playTurn();
-
-        var newdata = game.serializeGameState(game);
-
-        var newdatafile = tempy.file({extension: 'json'});
-        fs.writeFileSync(newdatafile, newdata);
-        console.log('M*File written to ', newdatafile);
-
-        // reload
-
-        const loaddata = fs.readFileSync(newdatafile);
-        const loaddatastr = loaddata.toString();
-        let loadgame = new FallingSkyVassalGameState();
-
-        //console.log('M*BEFORE LOAD:');
-        // console.log('@ECHO ON');
-        //loadgame.logState();
-        // console.log('@ECHO OFF');
-
-        loadgame.loadGameState(JSON.parse(loaddatastr));
-
-        // console.log('M*AFTER LOAD:');
-        // console.log('@ECHO ON');
-        // loadgame.logState();
-        // console.log('@ECHO OFF');
-
-        let diffIndex = findFirstDiffPos(newdata, loaddatastr);
-        if (diffIndex > -1) {
-          console.log('M*DIFF', diffIndex);
-          console.log('M*STRING 1:', newdata.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
-          console.log('M*STRING 2:', loaddatastr.substring(diffIndex - 30, diffIndex + 30).replace(/(?:\r\n|\r|\n)/g, ' '));
+      fs.readFile(response.datafile, function (err, data) {
+        console.log('vassalbot.readFile()');
+        
+        if (err) {
+          console.log('M*ERROR READING GAMESTATE ' + err.message);
+          throw err;
         }
-      }
-    });
+      
+        var json = JSON.parse(data.toString());
+
+        console.log('vassalbot.loadGameState()');
+
+        const game = new FallingSkyVassalGameState();
+        game.loadGameState(json);
+
+        // resume game
+
+        console.log('vassalbot.resume');
+        console.log(response);
+        console.log(response.interaction);
+
+        const interactionData = JSON.parse(response.interaction);
+        const interaction = PlayerInteractionFactory.create(interactionData.type, interactionData);
+        //interaction.loadGameState(interactionData);
+        interaction.response = response.reply;
+
+        switch (response.reply) {
+          case 'agreed':
+            console.log('M --> ' + interaction.respondingFactionId + ' agreed');
+            break;
+          case 'refused':
+            console.log('M --> ' + interaction.respondingFactionId + ' refused');
+            break;
+        }
+
+        game.resumeTurn(interaction);
+      });
+    } else {
+      // action from VASSAL
+      fs.readFile(gameStateFile, loadedVassalData);
+    }
   }
 };
 

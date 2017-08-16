@@ -25,8 +25,10 @@ class TurnHistory {
         });
         if (json.currentTurn === null)
             self.currentTurn = null;
-        else
-            self.currentTurn = new TurnContext(json.currentTurn);
+        else {
+            self.currentTurn = new Turn(self.state, json.currentTurn);
+            self.currentTurn.loadGameState(json.currentTurn);
+        }
     }
 
     startTurn(factionId) {
