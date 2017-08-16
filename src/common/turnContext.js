@@ -16,6 +16,7 @@ class TurnContext {
         this.winter = definition.winter;
         this.context = definition.context || {};
         this.currentFactionId = definition.currentFactionId;
+
         this.allowedRegions = _(RegionIDs).values().filter(function(regionId) {
             return !definition.allowedRegions || _.indexOf(definition.allowedRegions , regionId) >= 0;
         }).reject(function(regionId) {
@@ -57,13 +58,7 @@ class TurnContext {
         self.outOfSequence = json.outOfSequence || false;
         self.free = json.free || false;
         self.winter = json.winter || false;
-        if (!json.context || json.context === null)
-            self.context = {};
-        else {
-            const context = new TurnContext(json.context);
-            context.loadGameState(json.context);
-            self.context = context;
-        }
+        self.context = json.context || {};
         self.currentFactionId = json.currentFactionId || null;
         self.allowedRegions = json.allowedRegions;
         self.allowedCommands = json.allowedCommands;
