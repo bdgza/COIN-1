@@ -43,7 +43,11 @@ class Turn extends ActionGroup {
         self.commandAction = json.commandAction;
         self.actionGroups = json.actionGroups;
         self.inProgress = json.inProgress;
-        self.checkpoints = json.checkpoints;
+        json.checkpoints.forEach(function(value) {
+            const checkpoint = new Checkpoint(value);
+            checkpoint.loadGameState(value);
+            self.checkpoints.push(checkpoint);
+        });
         self.contexts = [];
         json.contexts.forEach(function(value) {
             const context = new TurnContext(value);
